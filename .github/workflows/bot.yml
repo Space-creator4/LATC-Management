@@ -1,0 +1,57 @@
+name: LATC Bot
+
+# A Discord bot needs one long lived process. This runs on a self-hosted runner
+# (register it in Settings > Actions > Runners with the label "self-hosted" and
+# keep it switched on), because GitHub's hosted runners shut down after a few
+# hours. The job stops just before the next scheduled run starts, so a new run
+# picks it straight back up.
+#
+# Add every DISCORD_TOKEN / *_ID value as a repository secret before pushing.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */5 * * *"
+
+concurrency:
+  group: latc-bot
+  cancel-in-progress: false
+
+jobs:
+  bot:
+    runs-on: self-hosted
+    timeout-minutes: 290
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run bot
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          GUILD_ID: ${{ secrets.GUILD_ID }}
+          APPLICATION_PANEL_CHANNEL_ID: ${{ secrets.APPLICATION_PANEL_CHANNEL_ID }}
+          APPLICATION_REVIEW_CHANNEL_ID: ${{ secrets.APPLICATION_REVIEW_CHANNEL_ID }}
+          MODLOG_CHANNEL_ID: ${{ secrets.MODLOG_CHANNEL_ID }}
+          STAFF_ROLE_ID: ${{ secrets.STAFF_ROLE_ID }}
+          PILOT_ROLE_ID: ${{ secrets.PILOT_ROLE_ID }}
+          ATC_ROLE_ID: ${{ secrets.ATC_ROLE_ID }}
+          OWNER_IDS: ${{ secrets.OWNER_IDS }}
+          ROBLOX_CLIENT_ID: ${{ secrets.ROBLOX_CLIENT_ID }}
+          ROBLOX_CLIENT_SECRET: ${{ secrets.ROBLOX_CLIENT_SECRET }}
+          ROBLOX_REDIRECT_URI: ${{ secrets.ROBLOX_REDIRECT_URI }}
+          ROBLOX_CALLBACK_PORT: ${{ secrets.ROBLOX_CALLBACK_PORT }}
+          ROBLOX_SCOPES: ${{ secrets.ROBLOX_SCOPES }}
+          LOG_LEVEL: INFO
+        run: python main.py
