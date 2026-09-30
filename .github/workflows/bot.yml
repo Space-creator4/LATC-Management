@@ -6,7 +6,9 @@ name: LATC Bot
 # hours. The job stops just before the next scheduled run starts, so a new run
 # picks it straight back up.
 #
-# Add every DISCORD_TOKEN / *_ID value as a repository secret before pushing.
+# Add DISCORD_TOKEN and any *_ID value as a repository secret before pushing. The
+# VERIFY_* secrets are optional: leaving one unset falls back to the built in default
+# in Config.from_env. No Roblox credentials are required at all.
 
 on:
   push:
@@ -40,6 +42,7 @@ jobs:
       - name: Run bot
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
           GUILD_ID: ${{ secrets.GUILD_ID }}
           APPLICATION_PANEL_CHANNEL_ID: ${{ secrets.APPLICATION_PANEL_CHANNEL_ID }}
           APPLICATION_REVIEW_CHANNEL_ID: ${{ secrets.APPLICATION_REVIEW_CHANNEL_ID }}
@@ -48,10 +51,14 @@ jobs:
           PILOT_ROLE_ID: ${{ secrets.PILOT_ROLE_ID }}
           ATC_ROLE_ID: ${{ secrets.ATC_ROLE_ID }}
           OWNER_IDS: ${{ secrets.OWNER_IDS }}
-          ROBLOX_CLIENT_ID: ${{ secrets.ROBLOX_CLIENT_ID }}
-          ROBLOX_CLIENT_SECRET: ${{ secrets.ROBLOX_CLIENT_SECRET }}
-          ROBLOX_REDIRECT_URI: ${{ secrets.ROBLOX_REDIRECT_URI }}
-          ROBLOX_CALLBACK_PORT: ${{ secrets.ROBLOX_CALLBACK_PORT }}
-          ROBLOX_SCOPES: ${{ secrets.ROBLOX_SCOPES }}
+          # Roblox bio verification. No Roblox account, password, cookie, or session
+          # token is used, so there are no Roblox secrets to add here.
+          VERIFICATION_ROLE_ID: ${{ secrets.VERIFICATION_ROLE_ID }}
+          VERIFY_CODE_EXPIRY_MINUTES: ${{ secrets.VERIFY_CODE_EXPIRY_MINUTES }}
+          VERIFY_MAX_ATTEMPTS: ${{ secrets.VERIFY_MAX_ATTEMPTS }}
+          VERIFY_COOLDOWN_SECONDS: ${{ secrets.VERIFY_COOLDOWN_SECONDS }}
+          VERIFY_ALLOW_TRANSFER: ${{ secrets.VERIFY_ALLOW_TRANSFER }}
+          VERIFY_REMOVE_ROLE_ON_UNLINK: ${{ secrets.VERIFY_REMOVE_ROLE_ON_UNLINK }}
+          ROBLOX_LOOKUP_MIN_INTERVAL: ${{ secrets.ROBLOX_LOOKUP_MIN_INTERVAL }}
           LOG_LEVEL: INFO
         run: python main.py

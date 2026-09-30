@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import hashlib
-import html
 import json
 import logging
 import os
@@ -20,7 +17,6 @@ from urllib.parse import urlencode
 
 import aiohttp
 import discord
-from aiohttp import web
 from discord import app_commands
 from discord.ext import commands
 
@@ -31,17 +27,17 @@ APPROVED_COLOR = 0x3BA55D
 DENIED_COLOR = 0xED4245
 UNVERIFIED_COLOR = 0x8B5CF6
 
-ROBLOX_AUTHORIZE_URL = "https://apis.roblox.com/oauth/v1/authorize"
-ROBLOX_TOKEN_URL = "https://apis.roblox.com/oauth/v1/token"
-ROBLOX_USERINFO_URL = "https://apis.roblox.com/oauth/v1/userinfo"
+# Verification reads public Roblox profile data only. No Roblox account, password,
+# cookie, .ROBLOSECURITY, OAuth client, or access/refresh token is used or stored.
 ROBLOX_USER_API = "https://users.roblox.com/v1/users"
 ROBLOX_USERNAME_API = "https://users.roblox.com/v1/usernames/users"
 ROBLOX_USERNAME_SEARCH_API = "https://apis.roblox.com/user-search-api/v1/usernames/search"
-ROBLOX_LINK_TTL_SECONDS = 900
-ROBLOX_CALLBACK_PATH = "/roblox/callback"
 ROBLOX_BIO_EDIT_URL = "https://www.roblox.com/my/account#!/about"
 USER_AGENT = "LATC-Discord-Bot/1.0"
 VERIFY_CODE_PREFIX = "VERIFY"
+# Link methods that were always backed by a code in the public bio. The removed
+# "oauth", "manual", and "lookup" methods stay in the database for history only.
+VERIFIED_METHODS = frozenset({"profile"})
 
 log = logging.getLogger("latc")
 
@@ -89,6 +85,22 @@ def env_flag(name: str, default: bool) -> bool:
     return default
 
 
+def env_int_or(name: str, default: int) -> int:
+    """Like env_int but falls back only when unset, so an explicit 0 survives."""
+    value = env_int(name)
+    return default if value is None else value
+
+
+def env_float(name: str, default: float, minimum: float | None = None) -> float:
+    raw = os.environ.get(name, "").strip()
+    try:
+        value = float(raw) if raw else default
+    except ValueError:
+        log.warning("Environment variable %s is not a valid number: %r", name, raw)
+        return default
+    return max(value, minimum) if minimum is not None else value
+
+
 def truncate(text: str, limit: int = 200) -> str:
     text = " ".join(str(text).split())
     if len(text) <= limit:
@@ -108,6 +120,7 @@ def canonicalize(text: str) -> str:
 class Config:
     token: str
     database_path: Path
+    client_id: int | None
     guild_id: int | None
     panel_channel_id: int | None
     review_channel_id: int | None
@@ -116,11 +129,6 @@ class Config:
     pilot_role_id: int | None
     atc_role_id: int | None
     owner_ids: frozenset[int]
-    roblox_client_id: int | None
-    roblox_client_secret: str | None
-    roblox_redirect_uri: str | None
-    roblox_callback_port: int
-    roblox_scopes: str
     verification_role_id: int | None
     code_expiry_minutes: int
     max_verify_attempts: int
@@ -134,12 +142,10 @@ class Config:
         token = os.environ.get("DISCORD_TOKEN", "").strip()
         if not token:
             raise RuntimeError("DISCORD_TOKEN is not set. Add it to .env or the GitHub secret.")
-        redirect_uri = os.environ.get("ROBLOX_REDIRECT_URI", "").strip() or None
-        port = env_int("ROBLOX_CALLBACK_PORT") or 8787
-        scopes = os.environ.get("ROBLOX_SCOPES", "openid profile").strip() or "openid profile"
         return cls(
             token=token,
             database_path=Path(os.environ.get("DB_PATH", BASE_DIR / "data" / "latc.db")),
+            client_id=env_int("CLIENT_ID"),
             guild_id=env_int("GUILD_ID"),
             panel_channel_id=env_int("APPLICATION_PANEL_CHANNEL_ID"),
             review_channel_id=env_int("APPLICATION_REVIEW_CHANNEL_ID"),
@@ -148,25 +154,14 @@ class Config:
             pilot_role_id=env_int("PILOT_ROLE_ID"),
             atc_role_id=env_int("ATC_ROLE_ID"),
             owner_ids=env_id_set("OWNER_IDS"),
-            roblox_client_id=env_int("ROBLOX_CLIENT_ID"),
-            roblox_client_secret=os.environ.get("ROBLOX_CLIENT_SECRET", "").strip() or None,
-            roblox_redirect_uri=redirect_uri,
-            roblox_callback_port=port,
-            roblox_scopes=scopes,
             verification_role_id=env_int("VERIFICATION_ROLE_ID"),
-            code_expiry_minutes=max(env_int("VERIFY_CODE_EXPIRY_MINUTES") or 10, 1),
-            max_verify_attempts=max(env_int("VERIFY_MAX_ATTEMPTS") or 5, 1),
-            verify_cooldown_seconds=max(env_int("VERIFY_COOLDOWN_SECONDS") or 30, 0),
+            code_expiry_minutes=max(env_int_or("VERIFY_CODE_EXPIRY_MINUTES", 10), 1),
+            max_verify_attempts=max(env_int_or("VERIFY_MAX_ATTEMPTS", 5), 1),
+            verify_cooldown_seconds=max(env_int_or("VERIFY_COOLDOWN_SECONDS", 30), 0),
             allow_roblox_transfer=env_flag("VERIFY_ALLOW_TRANSFER", False),
             remove_role_on_unlink=env_flag("VERIFY_REMOVE_ROLE_ON_UNLINK", True),
-            roblox_lookup_min_interval=max(
-                float(os.environ.get("ROBLOX_LOOKUP_MIN_INTERVAL", "0.6") or 0.6), 0.0
-            ),
+            roblox_lookup_min_interval=env_float("ROBLOX_LOOKUP_MIN_INTERVAL", 0.6, minimum=0.0),
         )
-
-    @property
-    def roblox_oauth_ready(self) -> bool:
-        return bool(self.roblox_client_id and self.roblox_client_secret and self.roblox_redirect_uri)
 
     def role_for_kind(self, kind: str) -> int | None:
         return self.pilot_role_id if kind == "pilot" else self.atc_role_id
@@ -237,24 +232,7 @@ CREATE INDEX IF NOT EXISTS applications_lookup ON applications (guild_id, status
 CREATE TABLE IF NOT EXISTS guild_settings (
     guild_id INTEGER PRIMARY KEY,
     roblox_requirement TEXT NOT NULL DEFAULT 'off',
-    roblox_bio_rule TEXT NOT NULL DEFAULT 'off',
     roblox_min_account_age_days INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS roblox_links (
-    state TEXT PRIMARY KEY,
-    guild_id INTEGER NOT NULL,
-    discord_user_id INTEGER NOT NULL,
-    code_verifier TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS roblox_bio_codes (
-    guild_id INTEGER NOT NULL,
-    discord_user_id INTEGER NOT NULL,
-    code TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, discord_user_id)
 );
 
 CREATE TABLE IF NOT EXISTS verify_sessions (
@@ -279,7 +257,6 @@ CREATE TABLE IF NOT EXISTS roblox_accounts (
     bio_ok INTEGER NOT NULL DEFAULT 0,
     method TEXT NOT NULL,
     account_age_days INTEGER,
-    email_verified INTEGER NOT NULL DEFAULT 0,
     verified_at INTEGER NOT NULL,
     PRIMARY KEY (guild_id, discord_user_id)
 );
@@ -287,11 +264,11 @@ CREATE TABLE IF NOT EXISTS roblox_accounts (
 CREATE TABLE IF NOT EXISTS verify_settings (
     guild_id INTEGER PRIMARY KEY,
     role_id INTEGER,
-    code_expiry_minutes INTEGER NOT NULL DEFAULT 10,
-    max_attempts INTEGER NOT NULL DEFAULT 5,
-    cooldown_seconds INTEGER NOT NULL DEFAULT 30,
-    allow_transfer INTEGER NOT NULL DEFAULT 0,
-    remove_role_on_unlink INTEGER NOT NULL DEFAULT 1
+    code_expiry_minutes INTEGER,
+    max_attempts INTEGER,
+    cooldown_seconds INTEGER,
+    allow_transfer INTEGER,
+    remove_role_on_unlink INTEGER
 );
 """
 
@@ -310,9 +287,62 @@ class Database:
         self._add_column("roblox_accounts", "display_name", "TEXT")
         self._add_column("roblox_accounts", "bio", "TEXT NOT NULL DEFAULT ''")
         self._add_column("roblox_accounts", "bio_ok", "INTEGER NOT NULL DEFAULT 0")
-        self._add_column("guild_settings", "roblox_bio_rule", "TEXT NOT NULL DEFAULT 'off'")
+        self._migrate_verify_settings()
+        self._drop_legacy_columns()
+        self._normalize_requirement_values()
         self._enforce_roblox_link_uniqueness()
         self._connection.commit()
+
+    def _normalize_requirement_values(self) -> None:
+        """Fold the retired requirement values into the single code based one.
+
+        Verification is now always a code in the public bio, so the old "any" alias
+        and the removed "oauth" value both mean the same thing as "profile".
+        """
+        self._connection.execute(
+            "UPDATE guild_settings SET roblox_requirement = 'profile'"
+            " WHERE roblox_requirement IN ('any', 'oauth', 'manual', 'lookup')"
+        )
+
+    def _drop_legacy_columns(self) -> None:
+        """Remove tables and columns the code-only bio flow no longer reads.
+
+        These belonged to the old username-only and Roblox sign in flows. Dropping them
+        keeps the schema honest and stops stale codes from lingering in the database.
+        email_verified was only ever populated by the removed sign in flow and never
+        gated a decision, so the public bio code is the only ownership evidence now.
+        """
+        self._connection.execute("DROP TABLE IF EXISTS roblox_bio_codes")
+        self._connection.execute("DROP TABLE IF EXISTS roblox_links")
+        if "roblox_bio_rule" in self._columns("guild_settings"):
+            self._connection.execute("ALTER TABLE guild_settings DROP COLUMN roblox_bio_rule")
+        if "email_verified" in self._columns("roblox_accounts"):
+            self._connection.execute("ALTER TABLE roblox_accounts DROP COLUMN email_verified")
+
+    def _migrate_verify_settings(self) -> None:
+        """Allow NULL in verify_settings so staff can set a real 0 override.
+
+        The table originally shipped with NOT NULL DEFAULT columns, which made a stored
+        0 indistinguishable from "never set" and made a 0 cooldown impossible.
+        """
+        info = {
+            row["name"]: row
+            for row in self._connection.execute("PRAGMA table_info(verify_settings)").fetchall()
+        }
+        if not info or all(not info[column]["notnull"] for column in info if column != "guild_id"):
+            return
+        self._connection.execute("ALTER TABLE verify_settings RENAME TO verify_settings_old")
+        self._connection.execute(
+            "CREATE TABLE verify_settings ("
+            " guild_id INTEGER PRIMARY KEY, role_id INTEGER, code_expiry_minutes INTEGER,"
+            " max_attempts INTEGER, cooldown_seconds INTEGER, allow_transfer INTEGER,"
+            " remove_role_on_unlink INTEGER)"
+        )
+        self._connection.execute(
+            "INSERT INTO verify_settings SELECT guild_id, role_id, code_expiry_minutes, max_attempts,"
+            " cooldown_seconds, allow_transfer, remove_role_on_unlink FROM verify_settings_old"
+        )
+        self._connection.execute("DROP TABLE verify_settings_old")
 
     def _enforce_roblox_link_uniqueness(self) -> None:
         """Guarantee one Roblox account maps to one Discord account per guild.
@@ -570,7 +600,6 @@ class Database:
         row = await self.fetch_one("SELECT * FROM guild_settings WHERE guild_id = ?", (guild_id,))
         return {
             "roblox_requirement": str(row["roblox_requirement"]),
-            "roblox_bio_rule": str(row["roblox_bio_rule"]),
             "roblox_min_account_age_days": int(row["roblox_min_account_age_days"]),
         }
 
@@ -579,13 +608,6 @@ class Database:
         await self.execute(
             "UPDATE guild_settings SET roblox_requirement = ? WHERE guild_id = ?",
             (requirement, guild_id),
-        )
-
-    async def set_roblox_bio_rule(self, guild_id: int, rule: str) -> None:
-        await self.execute("INSERT OR IGNORE INTO guild_settings (guild_id) VALUES (?)", (guild_id,))
-        await self.execute(
-            "UPDATE guild_settings SET roblox_bio_rule = ? WHERE guild_id = ?",
-            (rule, guild_id),
         )
 
     def generate_code(self) -> str:
@@ -625,6 +647,12 @@ class Database:
         )
 
     async def _unused_code(self, guild_id: int, discord_user_id: int) -> str:
+        """Mint a code that no other live session in this server is using.
+
+        The loop keeps the VERIFY-XXXXXX format instead of falling back to a wider
+        alphabet, since members retype the code by hand. 32^6 is large enough that
+        a collision that survives this many tries means the table is unusable.
+        """
         for _ in range(20):
             code = self.generate_code()
             clash = await self.fetch_one(
@@ -634,7 +662,7 @@ class Database:
             )
             if clash is None:
                 return code
-        return f"{VERIFY_CODE_PREFIX}-{secrets.token_hex(6).upper()}"
+        raise RuntimeError("could not find an unused verification code")
 
     @staticmethod
     def session_is_live(row: sqlite3.Row, expiry_minutes: int) -> bool:
@@ -657,11 +685,19 @@ class Database:
             (now_ts(), guild_id, discord_user_id),
         )
 
-    async def consume_session(self, guild_id: int, discord_user_id: int) -> None:
-        await self.execute(
-            "UPDATE verify_sessions SET consumed_at = ? WHERE guild_id = ? AND discord_user_id = ?",
-            (now_ts(), guild_id, discord_user_id),
-        )
+    async def consume_session(self, guild_id: int, discord_user_id: int) -> bool:
+        """Burn the code, returning False if another request already consumed it.
+
+        The WHERE clause is the guard: only the first caller sees consumed_at change, so a
+        double click on the Verify button cannot link the account twice.
+        """
+        return (
+            await self.execute(
+                "UPDATE verify_sessions SET consumed_at = ?"
+                " WHERE guild_id = ? AND discord_user_id = ? AND consumed_at IS NULL",
+                (now_ts(), guild_id, discord_user_id),
+            )
+        ) == 1
 
     async def clear_session(self, guild_id: int, discord_user_id: int) -> None:
         await self.execute(
@@ -675,33 +711,48 @@ class Database:
             (guild_id, discord_user_id),
         )
 
-    async def delete_bio_code(self, guild_id: int, discord_user_id: int) -> int:
-        return await self.execute(
-            "DELETE FROM roblox_bio_codes WHERE guild_id = ? AND discord_user_id = ?",
-            (guild_id, discord_user_id),
-        )
-
-    async def active_code(self, guild_id: int, discord_user_id: int) -> str | None:
-        """Current code for the member, or None when there is no live session."""
-        row = await self.get_session(guild_id, discord_user_id)
-        return str(row["code"]) if row is not None and row["consumed_at"] is None else None
-
     async def get_verify_settings(self, guild_id: int, defaults: "Config") -> dict[str, Any]:
+        """Per guild verification settings, falling back to environment defaults.
+
+        A NULL column means "not set in this server", so the env value applies. Any
+        other value is an explicit staff override, including 0, which turns a feature off
+        instead of falling back to the env default.
+        """
         await self.execute("INSERT OR IGNORE INTO verify_settings (guild_id) VALUES (?)", (guild_id,))
         row = await self.fetch_one(
             "SELECT * FROM verify_settings WHERE guild_id = ?", (guild_id,)
         )
         return {
-            "role_id": int(row["role_id"]) if row["role_id"] else defaults.verification_role_id,
-            "code_expiry_minutes": int(row["code_expiry_minutes"]) or defaults.code_expiry_minutes,
-            "max_attempts": int(row["max_attempts"]) or defaults.max_verify_attempts,
-            "cooldown_seconds": int(row["cooldown_seconds"]) or defaults.verify_cooldown_seconds,
-            "allow_transfer": bool(row["allow_transfer"]),
-            "remove_role_on_unlink": bool(row["remove_role_on_unlink"]),
+            "role_id": defaults.verification_role_id if row["role_id"] is None else int(row["role_id"]),
+            "code_expiry_minutes": (
+                defaults.code_expiry_minutes
+                if row["code_expiry_minutes"] is None
+                else int(row["code_expiry_minutes"])
+            ),
+            "max_attempts": (
+                defaults.max_verify_attempts
+                if row["max_attempts"] is None
+                else int(row["max_attempts"])
+            ),
+            "cooldown_seconds": (
+                defaults.verify_cooldown_seconds
+                if row["cooldown_seconds"] is None
+                else int(row["cooldown_seconds"])
+            ),
+            "allow_transfer": (
+                defaults.allow_roblox_transfer
+                if row["allow_transfer"] is None
+                else bool(row["allow_transfer"])
+            ),
+            "remove_role_on_unlink": (
+                defaults.remove_role_on_unlink
+                if row["remove_role_on_unlink"] is None
+                else bool(row["remove_role_on_unlink"])
+            ),
         }
 
     async def set_verify_settings(self, guild_id: int, **values: Any) -> None:
-        await self.get_verify_settings(guild_id, Config.__new__(Config))
+        await self.execute("INSERT OR IGNORE INTO verify_settings (guild_id) VALUES (?)", (guild_id,))
         columns = {
             "role_id": int,
             "code_expiry_minutes": int,
@@ -713,9 +764,9 @@ class Database:
         for key, raw in values.items():
             if raw is None or key not in columns:
                 continue
+            value = int(bool(raw)) if key in {"allow_transfer", "remove_role_on_unlink"} else int(raw)
             await self.execute(
-                f"UPDATE verify_settings SET {key} = ? WHERE guild_id = ?",
-                (columns[key](bool(raw) if key in {"allow_transfer", "remove_role_on_unlink"} else raw), guild_id),
+                f"UPDATE verify_settings SET {key} = ? WHERE guild_id = ?", (value, guild_id)
             )
 
     async def set_roblox_min_age(self, guild_id: int, days: int) -> None:
@@ -724,23 +775,6 @@ class Database:
             "UPDATE guild_settings SET roblox_min_account_age_days = ? WHERE guild_id = ?",
             (max(days, 0), guild_id),
         )
-
-    async def create_roblox_link(
-        self, state: str, guild_id: int, discord_user_id: int, code_verifier: str
-    ) -> None:
-        await self.execute("DELETE FROM roblox_links WHERE created_at < ?", (now_ts() - 86400,))
-        await self.execute(
-            "INSERT INTO roblox_links (state, guild_id, discord_user_id, code_verifier, created_at)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (state, guild_id, discord_user_id, code_verifier, now_ts()),
-        )
-
-    async def consume_roblox_link(self, state: str) -> sqlite3.Row | None:
-        row = await self.fetch_one("SELECT * FROM roblox_links WHERE state = ?", (state,))
-        await self.execute("DELETE FROM roblox_links WHERE state = ?", (state,))
-        if row is None or now_ts() - int(row["created_at"]) > ROBLOX_LINK_TTL_SECONDS:
-            return None
-        return row
 
     async def save_roblox_account(
         self,
@@ -751,14 +785,22 @@ class Database:
         display_name: str,
         method: str,
         account_age_days: int | None,
-        email_verified: bool,
         bio: str = "",
         bio_ok: bool = True,
     ) -> None:
+        # A plain ON CONFLICT upsert on the primary key only. INSERT OR REPLACE would
+        # silently delete the row that already owns this Roblox account and hand it to
+        # the wrong member, so that case is left to raise instead.
         await self.execute(
-            "INSERT OR REPLACE INTO roblox_accounts (guild_id, discord_user_id, roblox_user_id,"
-            " username, display_name, bio, bio_ok, method, account_age_days, email_verified,"
-            " verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO roblox_accounts (guild_id, discord_user_id, roblox_user_id,"
+            " username, display_name, bio, bio_ok, method, account_age_days,"
+            " verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT (guild_id, discord_user_id) DO UPDATE SET"
+            " roblox_user_id = excluded.roblox_user_id, username = excluded.username,"
+            " display_name = excluded.display_name, bio = excluded.bio,"
+            " bio_ok = excluded.bio_ok, method = excluded.method,"
+            " account_age_days = excluded.account_age_days,"
+            " verified_at = excluded.verified_at",
             (
                 guild_id,
                 discord_user_id,
@@ -769,7 +811,6 @@ class Database:
                 int(bio_ok),
                 method,
                 account_age_days,
-                int(email_verified),
                 now_ts(),
             ),
         )
@@ -929,13 +970,6 @@ class IntervalGate:
             self._next_at = time.monotonic() + self.min_interval
 
 
-def pkce_pair() -> tuple[str, str]:
-    verifier = secrets.token_urlsafe(64)[:128]
-    digest = hashlib.sha256(verifier.encode("ascii")).digest()
-    challenge = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
-    return verifier, challenge
-
-
 def roblox_created_timestamp(value: Any) -> int | None:
     if value is None or value == "":
         return None
@@ -996,35 +1030,6 @@ class RobloxClient:
         except json.JSONDecodeError as error:
             raise RobloxError("Roblox sent a response the bot could not read.") from error
 
-    def authorize_url(self, state: str, challenge: str) -> str:
-        return f"{ROBLOX_AUTHORIZE_URL}?" + urlencode(
-            {
-                "client_id": str(self.config.roblox_client_id),
-                "redirect_uri": self.config.roblox_redirect_uri,
-                "response_type": "code",
-                "scope": self.config.roblox_scopes,
-                "state": state,
-                "code_challenge": challenge,
-                "code_challenge_method": "S256",
-            }
-        )
-
-    async def exchange_code(self, code: str, code_verifier: str) -> dict[str, Any]:
-        payload = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "code_verifier": code_verifier,
-            "client_id": str(self.config.roblox_client_id),
-            "client_secret": str(self.config.roblox_client_secret),
-            "redirect_uri": str(self.config.roblox_redirect_uri),
-        }
-        return await self._json("POST", ROBLOX_TOKEN_URL, data=payload)
-
-    async def userinfo(self, access_token: str) -> dict[str, Any]:
-        return await self._json(
-            "GET", ROBLOX_USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"}
-        )
-
     async def fetch_user(self, roblox_user_id: int) -> dict[str, Any]:
         return await self._json("GET", f"{ROBLOX_USER_API}/{roblox_user_id}")
 
@@ -1045,6 +1050,10 @@ class RobloxClient:
                 ROBLOX_USERNAME_API,
                 json={"usernames": [wanted], "excludeBannedUsers": False},
             )
+        except RobloxUnavailable:
+            # A 429 or 5xx must not look like "no such user", or a rate limited Roblox
+            # would read as a wrong username to the member.
+            raise
         except RobloxError:
             batch = {}
         for entry in batch.get("data") or []:
@@ -1057,6 +1066,8 @@ class RobloxClient:
                 "GET",
                 f"{ROBLOX_USERNAME_SEARCH_API}?{urlencode({'keyword': wanted, 'limit': 10})}",
             )
+        except RobloxUnavailable:
+            raise
         except RobloxError:
             search = {}
         for entry in search.get("searchResults") or []:
@@ -1261,7 +1272,7 @@ class BeginButton(discord.ui.Button):
 class RobloxVerifyButton(discord.ui.Button):
     def __init__(self, bot: "LATCManagement", guild_id: int) -> None:
         super().__init__(
-            style=discord.ButtonStyle.bluurple,
+            style=discord.ButtonStyle.blurple,
             label="Verify",
             custom_id=f"roblox:verify:{guild_id}",
         )
@@ -1397,7 +1408,7 @@ class PanelView(discord.ui.View):
         self.add_item(RobloxVerifyButton(bot, guild_id))
 
 
-def build_panel_embed(guild: discord.Guild, requirement: str, bio_rule: str) -> discord.Embed:
+def build_panel_embed(guild: discord.Guild, requirement: str) -> discord.Embed:
     embed = discord.Embed(
         title="LATC Applications",
         description=(
@@ -1439,13 +1450,6 @@ def build_profile_embed(account: sqlite3.Row, note: str | None = None) -> discor
     if note:
         embed.add_field(name="Still to do", value=note, inline=False)
     return embed
-
-
-BIO_RULES: dict[str, str] = {
-    "off": "any Roblox account is accepted",
-    "discord": "the bio or display name must contain the member's Discord name",
-    "code": "the bio must contain the one time code the bot gives them",
-}
 
 
 def code_instructions(code: str, expiry_minutes: int, username: str | None) -> str:
@@ -1531,6 +1535,10 @@ VERIFY_MESSAGES: dict[str, str] = {
         "That Roblox account is already linked to a different Discord account here. If that is "
         "wrong, ask a staff member to unlink it."
     ),
+    "already_linked": (
+        "You already have a different Roblox account linked here. Run `/unlink` first, then "
+        "verify again."
+    ),
     "banned": "That Roblox account is banned, so it cannot be used for verification.",
     "too_new": "That Roblox account is too new for this server's requirements.",
     "unavailable": (
@@ -1540,32 +1548,39 @@ VERIFY_MESSAGES: dict[str, str] = {
 }
 
 
-def code_in_bio(code: str, bio: str, roblox_display_name: str) -> bool:
-    """True when the exact code appears in the public bio/about text.
+def code_in_bio(code: str, bio: str) -> bool:
+    """True when the code appears as its own token in the public bio/about text.
 
-    Matching is case-insensitive and tolerates surrounding whitespace so a code pasted
-    with a stray space still counts, but the characters themselves must be exact.
+    Only the About text is searched. The Roblox display name is never part of the
+    check, because a display name is not proof of account ownership. Matching is
+    case-insensitive and requires the code to stand on its own, so a longer word
+    that merely contains the code does not count as verification.
     """
+    code = code.strip()
     if not code:
         return False
-    haystack = f"{bio}\n{roblox_display_name}".lower()
-    return code.strip().lower() in haystack
+    return re.search(rf"(?<![A-Za-z0-9]){re.escape(code)}(?![A-Za-z0-9])", bio, re.IGNORECASE) is not None
 
 
 def roblox_summary(account: sqlite3.Row | None) -> str:
     if account is None:
         return "Not verified"
     method = str(account["method"])
-    label = {
-        "oauth": "verified with Roblox sign in",
-        "profile": "username and bio check",
-        "manual": "verified by staff",
-        "lookup": "old username check, run /verify again",
-    }.get(method, method)
+    if method in VERIFIED_METHODS:
+        label = "verified with a code in the public bio"
+    else:
+        # The removed flows can never satisfy the new requirement, so say so
+        # plainly instead of implying a bio code was confirmed.
+        retired = {
+            "oauth": "retired Roblox sign in link",
+            "manual": "retired staff override link",
+            "lookup": "retired username only link",
+        }
+        label = retired.get(method, f"retired link ({method})")
     age = account["account_age_days"]
     age_text = f", {age}d old" if age is not None else ""
-    if method == "profile" and not account["bio_ok"]:
-        age_text += ", bio check not passed"
+    if method in VERIFIED_METHODS and not account["bio_ok"]:
+        age_text += ", bio code no longer confirmed"
     roblox_user_id = int(account["roblox_user_id"])
     username = str(account["username"])
     if roblox_user_id > 0:
@@ -1721,7 +1736,6 @@ class LATCManagement(commands.Bot):
         self.roblox = RobloxClient(config)
         self._copied_to_dev_guild = False
         self._views_restored = False
-        self._web_runner: web.AppRunner | None = None
         self.verify_limiter = SlidingWindowLimiter(limit=10, window=600.0)
         self.roblox_lookup_limiter = SlidingWindowLimiter(limit=8, window=60.0)
         register_commands(self)
@@ -1777,25 +1791,37 @@ class LATCManagement(commands.Bot):
 
     @staticmethod
     def roblox_requirement_met(requirement: str, account: sqlite3.Row | None) -> bool:
+        """Whether a linked account satisfies the server's application requirement.
+
+        Only a real code in the member's public bio counts now. Links created by the
+        old Roblox sign in and staff override flows are still shown in history, but
+        they no longer grant access, so every stored method has to be bio backed.
+        """
         if requirement == "off":
             return True
         if account is None:
             return False
-        method = str(account["method"])
-        if requirement == "oauth":
-            return method in {"oauth", "manual"}
-        if requirement == "profile":
-            return method in {"oauth", "manual"} or bool(account["bio_ok"])
-        return True
+        return str(account["method"]) in VERIFIED_METHODS and bool(account["bio_ok"])
 
     async def start_verification(
         self, guild_id: int, user: discord.abc.User, username: str | None
     ) -> tuple[sqlite3.Row, dict[str, Any]]:
-        """Create (or reuse) the member's code and remember any username they supplied."""
+        """Create (or reuse) the member's code and remember any username they supplied.
+
+        A session that used up all its attempts is replaced here, so the "run /verify
+        again to start over" message the member sees actually gives them a new code.
+        """
         settings = await self.db.get_verify_settings(guild_id, self.config)
-        session = await self.db.get_or_create_session(
-            guild_id, user.id, int(settings["code_expiry_minutes"])
-        )
+        expiry = int(settings["code_expiry_minutes"])
+        session = await self.db.get_session(guild_id, user.id)
+        if session is not None and not session["consumed_at"]:
+            if int(session["attempts"]) >= int(settings["max_attempts"]):
+                # Burn the used-up session so the "run /verify again" message really
+                # hands out a new code instead of the same dead one.
+                await self.db.clear_session(guild_id, user.id)
+        # Reuses the code while it is still live, and mints a new one once it expired
+        # or was consumed, so repeat calls never invalidate a code mid typing.
+        session = await self.db.get_or_create_session(guild_id, user.id, expiry)
         if username:
             await self.db.set_session_username(guild_id, user.id, username.strip())
             session = await self.db.get_session(guild_id, user.id) or session
@@ -1820,6 +1846,9 @@ class LATCManagement(commands.Bot):
         if not target:
             return "no_username", None
 
+        if int(session["attempts"]) >= int(settings["max_attempts"]):
+            return "locked", None
+
         cooldown = int(settings["cooldown_seconds"])
         wait = cooldown - (now_ts() - int(session["last_attempt_at"] or 0))
         if wait > 0:
@@ -1831,9 +1860,6 @@ class LATCManagement(commands.Bot):
         blocked = await self.roblox_lookup_limiter.check(str(guild_id))
         if blocked:
             return "rate_limited", None
-
-        if int(session["attempts"]) >= int(settings["max_attempts"]):
-            return "locked", None
 
         await self.db.record_attempt(guild_id, user.id)
         try:
@@ -1852,7 +1878,7 @@ class LATCManagement(commands.Bot):
             return "banned", None
 
         bio = str(profile.get("description") or "")
-        if not code_in_bio(str(session["code"]), bio, str(profile.get("displayName") or "")):
+        if not code_in_bio(str(session["code"]), bio):
             return "bad_code", None
 
         guild_settings = await self.db.get_guild_settings(guild_id)
@@ -1865,19 +1891,23 @@ class LATCManagement(commands.Bot):
             display_name=str(profile.get("displayName") or target),
             method="profile",
             age_days=account_age_days(profile.get("created")),
-            email_verified=bool(profile.get("hasVerifiedEmail")),
             bio=bio,
             bio_ok=True,
             min_age_days=min_age,
             allow_transfer=bool(settings["allow_transfer"]),
+            profile=profile,
+            require_unlink=True,
         )
         if problem == "taken":
             return "taken", None
+        if problem == "already_linked":
+            return "already_linked", None
         if problem is not None:
             return "too_new" if min_age and "day(s) old" in problem else "unavailable", None
 
         # A successful use burns the code immediately so it can never be replayed.
-        await self.db.consume_session(guild_id, user.id)
+        if not await self.db.consume_session(guild_id, user.id):
+            return "expired", None
         account = await self.db.get_roblox_account(guild_id, user.id)
         return "verified", account
 
@@ -1905,43 +1935,35 @@ class LATCManagement(commands.Bot):
             return "Something went wrong while giving you the role."
         return None
 
-    async def unlink_account(
-        self, guild_id: int, user: discord.abc.User, settings: dict[str, Any] | None = None
-    ) -> bool:
-        """Remove the link, clear the code, and optionally drop the verification role."""
-        existed = bool(await self.db.delete_roblox_account(guild_id, user.id))
-        await self.db.clear_session(guild_id, user.id)
-        await self.db.delete_bio_code(guild_id, user.id)
-        if not settings:
-            settings = await self.db.get_verify_settings(guild_id, self.config)
-        if settings.get("remove_role_on_unlink") and settings.get("role_id"):
-            guild = self.get_guild(guild_id)
-            member = guild.get_member(user.id) if guild else None
-            role = guild.get_role(int(settings["role_id"])) if guild else None
-            if member is not None and role is not None and role in member.roles:
-                try:
-                    await member.remove_roles(role, reason="Roblox account unlinked")
-                except discord.HTTPException as error:
-                    log.warning("Could not remove verification role from %s: %s", user.id, error)
+    async def remove_verification_role(self, guild_id: int, user_id: int) -> None:
+        """Best effort role cleanup, used by /unlink and by account transfers."""
+        settings = await self.db.get_verify_settings(guild_id, self.config)
+        if not settings.get("remove_role_on_unlink") or not settings.get("role_id"):
+            return
+        guild = self.get_guild(guild_id)
+        member = guild.get_member(user_id) if guild else None
+        role = guild.get_role(int(settings["role_id"])) if guild else None
+        if member is None or role is None or role not in member.roles:
+            return
+        try:
+            await member.remove_roles(role, reason="Roblox account unlinked")
+        except discord.HTTPException as error:
+            log.warning("Could not remove verification role from %s: %s", user_id, error)
+
+    async def unlink_account(self, guild_id: int, user_id: int) -> bool:
+        """Remove the link, clear the code, and drop the verification role."""
+        existed = bool(await self.db.delete_roblox_account(guild_id, user_id))
+        await self.db.clear_session(guild_id, user_id)
+        await self.remove_verification_role(guild_id, user_id)
         return existed
 
     async def send_verification_guide(
         self, guild_id: int, user: discord.abc.User, guild_name: str
     ) -> str:
-        verify_settings = await self.db.get_verify_settings(guild_id, self.config)
         session, verify_settings = await self.start_verification(guild_id, user, None)
         embed = build_verify_embed(
             str(session["code"]), int(verify_settings["code_expiry_minutes"]), None
         )
-        if self.config.roblox_oauth_ready:
-            verifier, challenge = pkce_pair()
-            state = secrets.token_urlsafe(32)
-            await self.db.create_roblox_link(state, guild_id, user.id, verifier)
-            embed.add_field(
-                name="Or sign in with Roblox",
-                value=f"[Verify with Roblox instead]({self.roblox.authorize_url(state, challenge)})",
-                inline=False,
-            )
         embed.set_footer(text=f"Verification for {guild_name}")
         try:
             await user.send(embed=embed)
@@ -1963,10 +1985,8 @@ class LATCManagement(commands.Bot):
         else:
             body = (
                 "Verify your Roblox account first, then apply again. I could not DM you, so run "
-                "`/verify username:YourRobloxName` in the server."
+                "`/verify` in the server and follow the steps there."
             )
-        if requirement == "oauth":
-            body += " This server needs a real Roblox sign in, not just a username."
         await interaction.response.send_message(body, ephemeral=True)
 
     async def store_roblox_account(
@@ -1978,13 +1998,15 @@ class LATCManagement(commands.Bot):
         display_name: str,
         method: str,
         age_days: int | None,
-        email_verified: bool,
         bio: str = "",
         bio_ok: bool = True,
         min_age_days: int = 0,
         allow_transfer: bool = False,
+        profile: dict[str, Any] | None = None,
+        require_unlink: bool = False,
     ) -> str | None:
-        profile = await self.roblox.fetch_user(roblox_user_id)
+        if profile is None:
+            profile = await self.roblox.fetch_user(roblox_user_id)
         if profile.get("isBanned"):
             return f"That Roblox account ({username}) is banned, so it cannot be verified."
         age_days = account_age_days(profile.get("created")) or age_days
@@ -1993,6 +2015,10 @@ class LATCManagement(commands.Bot):
                 f"That Roblox account is {age_days} day(s) old. This server needs at least "
                 f"{min_age_days} day(s)."
             )
+        if require_unlink:
+            current = await self.db.get_roblox_account(guild_id, user.id)
+            if current is not None and int(current["roblox_user_id"] or 0) != int(roblox_user_id):
+                return "already_linked"
         owner = (
             await self.db.get_roblox_account_by_roblox_id(guild_id, roblox_user_id)
             if roblox_user_id > 0
@@ -2005,6 +2031,7 @@ class LATCManagement(commands.Bot):
             # one-Roblox-account-per-Discord-user invariant still holds.
             await self.db.delete_roblox_account(guild_id, int(owner["discord_user_id"]))
             await self.db.clear_session(guild_id, int(owner["discord_user_id"]))
+            await self.remove_verification_role(guild_id, int(owner["discord_user_id"]))
             log.info(
                 "Roblox account %s transferred from %s to %s",
                 username,
@@ -2019,108 +2046,13 @@ class LATCManagement(commands.Bot):
             display_name,
             method,
             age_days,
-            email_verified or bool(profile.get("hasVerifiedEmail")),
             bio or str(profile.get("description") or ""),
             bio_ok,
         )
         log.info("Roblox account %s linked to %s via %s", username, user.id, method)
         return None
 
-    def _verify_page(self, title: str, message: str) -> web.Response:
-        body = (
-            "<!doctype html><html><head><meta charset='utf-8'>"
-            "<title>{title}</title></head>"
-            "<body style='font-family:system-ui;background:#1F6FEB;color:#fff;"
-            "display:flex;align-items:center;justify-content:center;height:100vh;margin:0'>"
-            "<div style='text-align:center;max-width:32rem;padding:2rem'>"
-            "<h1 style='font-size:2rem;margin:0 0 1rem'>{title}</h1>"
-            "<p style='font-size:1.1rem'>{message}</p></div></body></html>"
-        ).format(title=html.escape(title), message=html.escape(message))
-        return web.Response(text=body, content_type="text/html")
-
-    async def handle_roblox_callback(self, request: web.Request) -> web.Response:
-        if request.query.get("error"):
-            return self._verify_page(
-                "Verification cancelled",
-                "You declined the Roblox sign in, so nothing was linked. You can try again from "
-                "the server with /verify.",
-            )
-        state = request.query.get("state", "")
-        code = request.query.get("code", "")
-        link = await self.db.consume_roblox_link(state)
-        if not code or link is None:
-            return self._verify_page(
-                "Link expired",
-                "This verification link is no longer valid. Run /verify in the server to get a "
-                "fresh one.",
-            )
-        guild_id = int(link["guild_id"])
-        try:
-            tokens = await self.roblox.exchange_code(code, str(link["code_verifier"]))
-            access_token = str(tokens.get("access_token") or "")
-            if not access_token:
-                raise RobloxError("Roblox did not return an access token.")
-            profile = await self.roblox.userinfo(access_token)
-            roblox_user_id = int(profile["sub"])
-        except (RobloxError, KeyError, ValueError) as error:
-            log.warning("Roblox verification failed for %s: %s", link["discord_user_id"], error)
-            return self._verify_page("Verification failed", str(error))
-        try:
-            user = await self.fetch_user(int(link["discord_user_id"]))
-        except discord.NotFound:
-            return self._verify_page(
-                "Verification failed", "That Discord account no longer exists."
-            )
-        settings = await self.db.get_guild_settings(guild_id)
-        problem = await self.store_roblox_account(
-            guild_id=guild_id,
-            user=user,
-            roblox_user_id=roblox_user_id,
-            username=str(profile.get("preferred_username") or profile.get("name") or roblox_user_id),
-            display_name=str(profile.get("name") or ""),
-            method="oauth",
-            age_days=account_age_days(profile.get("created_at")),
-            email_verified=bool(profile.get("email_verified")),
-            min_age_days=int(settings["roblox_min_account_age_days"]),
-        )
-        if problem is not None:
-            return self._verify_page("Verification failed", problem)
-        try:
-            await user.send(
-                f"Your Roblox account `{profile.get('preferred_username') or roblox_user_id}` is "
-                "verified. You can now apply for a role from the panel."
-            )
-        except (discord.Forbidden, discord.HTTPException):
-            pass
-        return self._verify_page(
-            "Verified", "You can close this tab and go back to Discord."
-        )
-
-    async def start_callback_server(self) -> None:
-        if not self.config.roblox_oauth_ready or self._web_runner is not None:
-            return
-        app = web.Application()
-        app.router.add_get(ROBLOX_CALLBACK_PATH, self.handle_roblox_callback)
-        app.router.add_get("/health", lambda request: web.Response(text="ok"))
-        runner = web.AppRunner(app)
-        await runner.setup()
-        try:
-            await web.TCPSite(runner, "0.0.0.0", self.config.roblox_callback_port).start()
-        except OSError as error:
-            log.error("Could not start the Roblox callback server: %s", error)
-            await runner.cleanup()
-            return
-        self._web_runner = runner
-        log.info(
-            "Roblox verification live. Register this exact redirect URL in the Roblox Creator "
-            "Dashboard: %s",
-            self.config.roblox_redirect_uri,
-        )
-
     async def close(self) -> None:
-        if self._web_runner is not None:
-            await self._web_runner.cleanup()
-            self._web_runner = None
         await self.roblox.close()
         await super().close()
 
@@ -2240,7 +2172,6 @@ class LATCManagement(commands.Bot):
     async def on_ready(self) -> None:
         log.info("Logged in as %s in %s guild(s)", self.user, len(self.guilds))
         await self.sync_commands()
-        await self.start_callback_server()
         if self._views_restored:
             return
         self._views_restored = True
@@ -2300,11 +2231,7 @@ def register_commands(bot: LATCManagement) -> None:
         await interaction.response.defer(ephemeral=True)
         settings = await bot.db.get_guild_settings(interaction.guild.id)
         message = await interaction.channel.send(
-            embed=build_panel_embed(
-                interaction.guild,
-                str(settings["roblox_requirement"]),
-                str(settings["roblox_bio_rule"]),
-            ),
+            embed=build_panel_embed(interaction.guild, str(settings["roblox_requirement"])),
             view=PanelView(bot, interaction.guild.id),
         )
         await bot.db.set_panel_message_id(interaction.guild.id, message.id)
@@ -2699,6 +2626,16 @@ def register_commands(bot: LATCManagement) -> None:
         guild_id = interaction.guild.id
         await interaction.response.defer(ephemeral=True)
         account = await bot.db.get_roblox_account(guild_id, interaction.user.id)
+        if account is not None and str(account["method"]) not in VERIFIED_METHODS:
+            # A link from a retired flow cannot satisfy the bio code requirement, and
+            # /verify will refuse to overwrite it, so point at /unlink explicitly.
+            await interaction.followup.send(
+                f"Your link to **{account['username']}** came from a verification method this "
+                "bot no longer accepts, so it does not count any more. Run `/unlink` to remove "
+                "it, then run `/verify` to confirm ownership with a code in your public bio.",
+                ephemeral=True,
+            )
+            return
         if account is None or not account["bio_ok"]:
             await interaction.followup.send(
                 "You are **not verified** yet. Run `/verify` to get a code, put it in your "
@@ -2727,7 +2664,7 @@ def register_commands(bot: LATCManagement) -> None:
             )
             return
         settings = await bot.db.get_verify_settings(guild_id, bot.config)
-        await bot.unlink_account(guild_id, interaction.user, settings)
+        await bot.unlink_account(guild_id, interaction.user.id)
         note = ""
         if settings.get("remove_role_on_unlink") and settings.get("role_id"):
             note = "\nI also removed your verification role."
@@ -2745,22 +2682,18 @@ def register_commands(bot: LATCManagement) -> None:
         embed = discord.Embed(title="Roblox verification", color=UNVERIFIED_COLOR)
         embed.add_field(
             name="How members verify",
-            value="Run `/verify username:TheirRobloxName` in the server.",
-            inline=False,
-        )
-        embed.add_field(
-            name="Bio rule",
-            value=BIO_RULES.get(str(settings["roblox_bio_rule"]), "unknown"),
+            value=(
+                "Run `/verify` to get a one time code, put it in the public Roblox profile bio, "
+                "then press Verify. No Roblox sign in, password, or cookie is involved."
+            ),
             inline=False,
         )
         embed.add_field(
             name="Requirement",
             value={
                 "off": "Not required to apply",
-                "any": "Any Roblox account linked",
-                "profile": "Username and bio check required",
-                "oauth": "Roblox sign in required",
-            }.get(str(settings["roblox_requirement"]), "off"),
+                "profile": "Bio code required to apply",
+            }.get(str(settings["roblox_requirement"]), "Not required to apply"),
             inline=True,
         )
         embed.add_field(
@@ -2768,22 +2701,14 @@ def register_commands(bot: LATCManagement) -> None:
             value=f"{settings['roblox_min_account_age_days']} day(s)",
             inline=True,
         )
-        if bot.config.roblox_oauth_ready:
-            embed.add_field(
-                name="Roblox sign in",
-                value=f"Available, redirect `{bot.config.roblox_redirect_uri}`",
-                inline=False,
-            )
-        else:
-            embed.add_field(
-                name="Roblox sign in",
-                value=(
-                    "Not set up, which is fine. Username and bio checks need nothing extra. "
-                    "Set ROBLOX_CLIENT_ID, ROBLOX_CLIENT_SECRET and ROBLOX_REDIRECT_URI if you "
-                    "want members to sign in with Roblox instead."
-                ),
-                inline=False,
-            )
+        embed.add_field(
+            name="Verification method",
+            value=(
+                "Every member verifies with a one time code placed in their public Roblox bio. "
+                "No Roblox password, cookie, or sign in is ever needed."
+            ),
+            inline=False,
+        )
         if records:
             lines = [f"<@{row['discord_user_id']}> - {roblox_summary(row)}" for row in records]
             embed.add_field(name=f"Checked ({len(records)} shown)", value="\n".join(lines), inline=False)
@@ -2800,16 +2725,14 @@ def register_commands(bot: LATCManagement) -> None:
     @app_commands.check(staff_check)
     @app_commands.describe(
         mode=(
-            "off = anyone can apply, any = any Roblox account, profile = username and bio "
-            "check, oauth = only a real Roblox sign in."
+            "off = anyone can apply without verifying, required = the member must have a live "
+            "code in their public Roblox bio."
         )
     )
     @app_commands.choices(
         mode=[
             app_commands.Choice(name="Off", value="off"),
-            app_commands.Choice(name="Any account", value="any"),
-            app_commands.Choice(name="Username and bio", value="profile"),
-            app_commands.Choice(name="Roblox sign in", value="oauth"),
+            app_commands.Choice(name="Bio code required", value="profile"),
         ]
     )
     async def roblox_requirement(
@@ -2822,29 +2745,6 @@ def register_commands(bot: LATCManagement) -> None:
             ephemeral=True,
         )
 
-    @roblox_group.command(name="bio-rule", description="What the Roblox bio has to contain.")
-    @app_commands.check(staff_check)
-    @app_commands.describe(
-        rule=(
-            "off = any account, code = the bio must contain the code the bot gives them, "
-            "discord = the bio must contain their Discord name."
-        )
-    )
-    @app_commands.choices(
-        rule=[
-            app_commands.Choice(name="Off", value="off"),
-            app_commands.Choice(name="Code in bio", value="code"),
-            app_commands.Choice(name="Discord name in bio", value="discord"),
-        ]
-    )
-    async def roblox_bio_rule(
-        interaction: discord.Interaction, rule: app_commands.Choice[str]
-    ) -> None:
-        await bot.db.set_roblox_bio_rule(interaction.guild.id, rule.value)
-        await interaction.response.send_message(
-            f"Bio rule is now **{rule.value}**: {BIO_RULES[rule.value]}", ephemeral=True
-        )
-
     @roblox_group.command(name="min-age", description="Minimum Roblox account age to apply.")
     @app_commands.check(staff_check)
     @app_commands.describe(days="Days the Roblox account must be old, 0 for no minimum.")
@@ -2854,88 +2754,43 @@ def register_commands(bot: LATCManagement) -> None:
             f"Minimum Roblox account age is now {max(days, 0)} day(s).", ephemeral=True
         )
 
-    @roblox_group.command(name="check", description="Look up one member's Roblox account.")
-    @app_commands.check(staff_check)
-    @app_commands.describe(member="Member to look up.")
-    async def roblox_check(interaction: discord.Interaction, member: discord.Member) -> None:
-        account = await bot.db.get_roblox_account(interaction.guild.id, member.id)
-        settings = await bot.db.get_guild_settings(interaction.guild.id)
-        if account is None:
-            description = f"{member.mention} has no Roblox account checked yet."
-            embed = discord.Embed(
-                title="Roblox account", description=description, color=0x6B7280
-            )
-        else:
-            stamp = datetime.fromtimestamp(int(account["verified_at"])).strftime("%Y-%m-%d %H:%M")
-            embed = build_profile_embed(account)
-            embed.title = f"Roblox account for {member}"
-            embed.set_footer(text=f"Checked {stamp} UTC | counts for this server: "
-                                 f"{'yes' if bot.roblox_requirement_met(str(settings['roblox_requirement']), account) else 'no'}")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @roblox_group.command(name="override", description="Mark a member as verified yourself.")
+    @roblox_group.command(
+        name="lookup", description="Read a Roblox username's public bio."
+    )
     @app_commands.check(staff_check)
     @app_commands.describe(
-        member="Member to mark.", roblox_username="Their Roblox username, or leave empty."
+        roblox_username="Roblox username to read. This never changes any verification."
     )
-    async def roblox_override(
-        interaction: discord.Interaction, member: discord.Member, roblox_username: str = ""
+    async def roblox_lookup(
+        interaction: discord.Interaction, roblox_username: str
     ) -> None:
         await interaction.response.defer(ephemeral=True)
-        if roblox_username.strip():
-            try:
-                profile = await bot.roblox.resolve_username(roblox_username)
-            except RobloxError as error:
-                await interaction.followup.send(str(error), ephemeral=True)
-                return
-            problem = await bot.store_roblox_account(
-                guild_id=interaction.guild.id,
-                user=member,
-                roblox_user_id=int(profile.get("id") or 0),
-                username=str(profile.get("name") or roblox_username),
-                display_name=str(profile.get("displayName") or roblox_username),
-                method="manual",
-                age_days=None,
-                email_verified=False,
+        try:
+            profile = await bot.roblox.resolve_username(roblox_username)
+        except RobloxUnavailable:
+            await interaction.followup.send(
+                "Roblox is not answering right now, so I could not look that username up.", ephemeral=True
             )
-            if problem is not None:
-                await interaction.followup.send(f"That did not work: {problem}", ephemeral=True)
-                return
-        else:
-            await bot.db.save_roblox_account(
-                interaction.guild.id,
-                member.id,
-                0,
-                f"manual-{member.id}",
-                member.display_name,
-                "manual",
-                None,
-                False,
-            )
-        account = await bot.db.get_roblox_account(interaction.guild.id, member.id)
+            return
+        except RobloxError as error:
+            await interaction.followup.send(str(error), ephemeral=True)
+            return
+        bio = str(profile.get("description") or "")
         await interaction.followup.send(
-            f"{member.mention} is now marked as verified.\n{roblox_summary(account)}",
+            f"Looked up `{profile.get('name')}` (id `{profile.get('id')}`).\n"
+            f"Current public bio: {truncate(bio, 400) if bio else '_(empty)_'}\n\n"
+            "This is a read only lookup. The member still has to run `/verify` and put their own "
+            "code in that bio themselves, and staff cannot confirm it on their behalf.",
             ephemeral=True,
         )
 
-    @roblox_group.command(name="unlink", description="Remove a member's Roblox account.")
-    @app_commands.check(staff_check)
-    @app_commands.describe(member="Member to unlink.")
-    async def roblox_unlink(interaction: discord.Interaction, member: discord.Member) -> None:
-        await interaction.response.defer(ephemeral=True)
-        settings = await bot.db.get_verify_settings(interaction.guild.id, bot.config)
-        removed = await bot.unlink_account(interaction.guild.id, member, settings)
-        await interaction.followup.send(
-            f"Removed the Roblox link for {member.mention}." if removed
-            else f"{member.mention} had no Roblox account linked.",
-            ephemeral=True,
-        )
+    # Removing a member's link lives in /verify-admin unlink, which is the same
+    # action plus the previous username and an audit log line.
 
     verify_admin = app_commands.Group(
         name="verify-admin",
         description="Manage Roblox verification.",
         parent=None,
-        guild=False,
     )
     tree.add_command(verify_admin)
 
@@ -2973,8 +2828,7 @@ def register_commands(bot: LATCManagement) -> None:
         await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
         account = await bot.db.get_roblox_account(guild_id, user.id)
-        settings = await bot.db.get_verify_settings(guild_id, bot.config)
-        removed = await bot.unlink_account(guild_id, user, settings)
+        removed = await bot.unlink_account(guild_id, user.id)
         if removed:
             log.info("Verification removed for %s by %s", user.id, interaction.user.id)
         await interaction.followup.send(
@@ -3112,10 +2966,16 @@ def register_commands(bot: LATCManagement) -> None:
     @roblox_group.command(name="unlink-all", description="Remove every Roblox link in this server.")
     @app_commands.check(admin_check)
     async def roblox_unlink_all(interaction: discord.Interaction) -> None:
-        records = await bot.db.list_roblox_accounts(interaction.guild.id, 1000)
+        await interaction.response.defer(ephemeral=True)
+        guild_id = interaction.guild.id
+        records = await bot.db.list_roblox_accounts(guild_id, 1000)
         for row in records:
-            await bot.db.delete_roblox_account(interaction.guild.id, int(row["discord_user_id"]))
-        await interaction.response.send_message(f"Unlinked {len(records)} member(s).", ephemeral=True)
+            # Goes through the shared helper so members also lose the role and any
+            # pending code, instead of leaving verified roles behind.
+            await bot.unlink_account(guild_id, int(row["discord_user_id"]))
+        await interaction.followup.send(
+            f"Unlinked {len(records)} member(s) and removed their verification roles.", ephemeral=True
+        )
 
     @tree.command(name="sync", description="Re-sync slash commands to this server.")
     @app_commands.check(admin_check)
