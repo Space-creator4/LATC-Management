@@ -1,5 +1,9 @@
 # Render blueprint for the Latitude ATC website API.
 #
+# The website is https://latcm.co.uk and is served as static files, so it is not
+# part of this blueprint. This service only backs the interactive parts: sign in,
+# applications, the join queue, and the radar.
+#
 # Secrets are deliberately absent. Set these in the Render dashboard under
 # Environment, never in this file — it is committed.
 #
@@ -12,10 +16,10 @@
 #   ATC_ROLE_ID               snowflake for the controller role
 #   SESSION_SECRET            long random string; rotates every session out
 #   PRIVATE_INVITE_URL        the private invite; never leaves the service
-#   ALLOWED_ORIGINS           the website origin, comma separated
 #   DISCORD_REDIRECT_URI      <service>/auth/discord/callback
 #
-# In the Discord portal, add that exact redirect URI to the OAuth2 settings.
+# In the Discord portal, add that exact redirect URI to the OAuth2 settings. It
+# points at this service, not at latcm.co.uk, because Discord calls it directly.
 
 services:
   - type: web
@@ -32,6 +36,10 @@ services:
         value: "22"
       - key: NODE_ENV
         value: production
+      # The website origins, not this API's own origin. The first entry is where
+      # Discord returns the browser after login.
+      - key: ALLOWED_ORIGINS
+        value: https://latcm.co.uk,https://www.latcm.co.uk
       - key: APPLICATIONS_STAFF_OPEN
         value: "false"
       - key: APPLICATIONS_ATC_REQUIRES_PILOT

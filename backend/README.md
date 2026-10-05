@@ -43,17 +43,37 @@ npx serve Website -l 8000
 
 ## Deploying to Render
 
+The website is **https://latcm.co.uk**, served as static files. This service is
+only the API behind the interactive parts: sign in, applications, the join queue,
+and the radar. Two different domains are involved, and mixing them up is the
+most common way to get this wrong:
+
+| What                | Value                                                        |
+| ------------------- | ------------------------------------------------------------ |
+| Website origin      | `https://latcm.co.uk` — goes in `ALLOWED_ORIGINS`             |
+| Discord redirect    | `https://YOUR-SERVICE.onrender.com/auth/discord/callback`     |
+| API the browser uses| `https://YOUR-SERVICE.onrender.com` — goes in `apiBaseUrl`    |
+
 1. Create a Web Service pointing at this `backend` folder.
-2. Render picks up `render.yaml`, which sets the non-secret defaults.
+2. Render picks up `render.yaml`, which sets the non-secret defaults including
+   `ALLOWED_ORIGINS`.
 3. Add every secret from the header comment in `render.yaml` under
    **Environment**. The bot token, client secret, database URL, session secret,
    and private invite are all required.
 4. Copy the service URL into `DISCORD_REDIRECT_URI`, using
-   `https://YOUR-SERVICE.onrender.com/auth/discord/callback`.
+   `https://YOUR-SERVICE.onrender.com/auth/discord/callback`. This points at
+   the **API**, not at latcm.co.uk, because Discord calls it server to server.
 5. Add that same URL to **Discord developer portal → your app → OAuth2 →
-   Redirects**. It has to match exactly.
-6. Put the website's origin in `ALLOWED_ORIGINS`.
-7. Set `apiBaseUrl` in `Website/assets/js/config.js` to the service URL.
+   Redirects**. It has to match exactly, trailing slash included.
+6. Check `ALLOWED_ORIGINS` lists `https://latcm.co.uk` first. The first entry is
+   where the browser lands after signing in, so it becomes
+   `https://latcm.co.uk/account/?signed_in=1`.
+7. Set `apiBaseUrl` in `Website/assets/js/config.js` to the **service** URL.
+
+The cookies the session uses are `SameSite=Lax` with `Secure` in production,
+which works because the site is HTTPS and the API is on a different subdomain.
+If you ever serve the site over plain HTTP, set `SESSION_SECURE=false` or the
+browser will drop the cookie and nobody will stay signed in.
 
 `/health` is the health check path and needs no authentication.
 

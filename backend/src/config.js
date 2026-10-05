@@ -149,10 +149,20 @@ function loadConfig(env = process.env) {
 
         /**
          * Comma separated list of browser origins allowed to send credentialed
-         * requests. Default suits `npm start` on a laptop; set this to the real
-         * site origin in production or CORS will reject every browser call.
+         * requests. These are website origins, never this API's own origin.
+         *
+         * The first entry is also where Discord sends the browser back to after
+         * a successful login, so the live site is the default in production.
+         * On a laptop the default is the local static server instead, which is
+         * why the choice depends on NODE_ENV rather than being one constant.
          */
-        allowedOrigins: optional(env, "ALLOWED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000")
+        allowedOrigins: optional(
+            env,
+            "ALLOWED_ORIGINS",
+            isProduction
+                ? "https://latcm.co.uk,https://www.latcm.co.uk"
+                : "http://localhost:8000,http://127.0.0.1:8000"
+        )
             .split(",")
             .map((value) => value.trim())
             .filter(Boolean),
