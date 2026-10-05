@@ -1,0 +1,60 @@
+name: LATC Bot
+
+# A Discord bot needs one long lived process. This runs on a self-hosted runner
+# (register it in Settings > Actions > Runners with the label "self-hosted" and
+# keep it switched on), because GitHub's hosted runners shut down after a few
+# hours. The job stops just before the next scheduled run starts, so a new run
+# picks it straight back up.
+#
+# Add DISCORD_TOKEN and any *_ID value as a repository secret before pushing. The
+# VERIFY_* secrets are optional: leaving one unset falls back to the built in default
+# in Config.from_env. No Roblox credentials are required at all.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */5 * * *"
+
+concurrency:
+  group: latc-bot
+  cancel-in-progress: false
+
+jobs:
+  bot:
+    runs-on: self-hosted
+    timeout-minutes: 290
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run bot
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          GUILD_ID: ${{ secrets.GUILD_ID }}
+          MODLOG_CHANNEL_ID: ${{ secrets.MODLOG_CHANNEL_ID }}
+          STAFF_ROLE_ID: ${{ secrets.STAFF_ROLE_ID }}
+          OWNER_IDS: ${{ secrets.OWNER_IDS }}
+          # Roblox bio verification. No Roblox account, password, cookie, or session
+          # token is used, so there are no Roblox secrets to add here.
+          VERIFICATION_ROLE_ID: ${{ secrets.VERIFICATION_ROLE_ID }}
+          VERIFY_CODE_EXPIRY_MINUTES: ${{ secrets.VERIFY_CODE_EXPIRY_MINUTES }}
+          VERIFY_MAX_ATTEMPTS: ${{ secrets.VERIFY_MAX_ATTEMPTS }}
+          VERIFY_COOLDOWN_SECONDS: ${{ secrets.VERIFY_COOLDOWN_SECONDS }}
+          VERIFY_ALLOW_TRANSFER: ${{ secrets.VERIFY_ALLOW_TRANSFER }}
+          VERIFY_REMOVE_ROLE_ON_UNLINK: ${{ secrets.VERIFY_REMOVE_ROLE_ON_UNLINK }}
+          ROBLOX_LOOKUP_MIN_INTERVAL: ${{ secrets.ROBLOX_LOOKUP_MIN_INTERVAL }}
+          LOG_LEVEL: INFO
+        run: python main.py
