@@ -1,0 +1,8 @@
+# https://latcm.co.uk
+User-agent: *
+Allow: /
+
+# The queue and account pages need a session to show anything useful, but they
+# are still worth indexing by title.
+
+Sitemap: https://latcm.co.uk/sitemap.xml

@@ -1,0 +1,21 @@
+{
+  "name": "latc-website-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend for the Latitude ATC website: Discord OAuth, application intake, join queue, and ATC-only radar data.",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}

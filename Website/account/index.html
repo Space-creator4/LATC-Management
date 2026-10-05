@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Account — Latitude ATC</title>
+<meta name="description" content="Sign in to Latitude ATC with Discord to apply, join the server, and see the Radar.">
+<meta name="theme-color" content="#080f1c">
+<link rel="canonical" href="https://latcm.co.uk/account/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://latcm.co.uk/account/">
+<meta property="og:site_name" content="Latitude ATC">
+<meta property="og:title" content="Account — Latitude ATC">
+<meta property="og:description" content="Sign in to Latitude ATC with Discord.">
+
+<link rel="icon" href="../assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../assets/icons/favicon.svg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@600;700&display=swap">
+<link rel="stylesheet" href="../assets/css/main.css">
+
+<script>
+/* Applied before first paint so a returning visitor never sees a flash of the
+   wrong theme. Dark is the default, set in CSS; this only handles the choice. */
+(function () {
+    try {
+        if (window.localStorage.getItem("latc-theme") === "light") {
+            document.documentElement.setAttribute("data-theme", "light");
+        }
+    } catch (error) {
+        /* Storage can be blocked. The default still applies. */
+    }
+})();
+</script>
+</head>
+
+<body>
+<div class="page-shell">
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="brand" href="../index.html" aria-label="Latitude ATC — home">
+      <img src="https://bronkbuilder-website-assets.s3.us-east-2.amazonaws.com/users/7540dd9d-b3dd-417b-ac81-19a86ea854a6/websites/7021253e-9e81-4fb2-ac17-e9548c9e078b/LOGO/30662df8-c658-4ee5-a220-9153bd847fa3.webp" alt="Latitude ATC" width="120" height="34">
+      <span class="brand__text">
+        <span class="brand__name">Latitude ATC</span>
+        <span class="brand__tag">Roblox Network</span>
+      </span>
+    </a>
+
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+      <span class="visually-hidden">Toggle navigation</span>
+      <span class="nav-toggle__bar" aria-hidden="true"></span>
+    </button>
+
+    <nav class="nav" id="primary-nav" aria-label="Primary">
+      <ul class="nav__list">
+        <li><a class="nav__link" href="../index.html">Home</a></li>
+        <li><a class="nav__link" href="../about/">About</a></li>
+        <li><a class="nav__link" href="../operations/">Operations</a></li>
+        <li><a class="nav__link" href="../radar/">Radar</a></li>
+        <li><a class="nav__link" href="../rules/">Rules</a></li>
+        <li><a class="nav__link" href="../applications/">Applications</a></li>
+      </ul>
+      <div class="nav__actions">
+        <button class="icon-btn" type="button" data-theme-toggle aria-pressed="false">
+          <svg class="icon-btn__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
+          <svg class="icon-btn__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <span class="visually-hidden" data-theme-label>Light theme</span>
+        </button>
+        <a class="btn btn--secondary btn--sm" href="../account/" data-auth="signed-out">Sign in</a>
+        <a class="btn btn--primary btn--sm" href="../account/" aria-current="page" data-auth="signed-in"><span data-auth-username>Account</span></a>
+        <a class="btn btn--discord btn--sm" href="#discord" data-config="discordInvite" data-external>Join Discord</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="page-hero">
+    <div class="container page-hero__inner">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="../index.html">Home</a>
+        <span class="breadcrumb__sep" aria-hidden="true">/</span>
+        <span aria-current="page">Account</span>
+      </nav>
+      <p class="eyebrow">Account</p>
+      <h1>Your Latitude ATC account</h1>
+      <p class="lead">One Discord sign in covers applying, joining the server, and seeing which parts of the site you are cleared for.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="account">
+
+        <!-- Signed out -->
+        <div class="account-card" data-auth="signed-out">
+          <span class="account-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>
+          <h2>Sign in with Discord</h2>
+          <p>We ask Discord for your username, avatar, and the roles you hold on our server. Nothing is posted anywhere, and we never see your password.</p>
+
+          <p class="account-card__roles">
+            Discord is asked for <code>identify</code> and <code>guilds.members.read</code> only. Both are read-only, and either can be revoked from your Discord settings at any time.
+          </p>
+
+          <div class="btn-row mt-3">
+            <a class="btn btn--primary btn--lg" href="#" data-auth-signin>Sign in with Discord</a>
+          </div>
+
+          <p class="account-card__aside">
+            You can read everything on this site without signing in. An account is only needed to apply, to join the queue, or to view the Radar.
+          </p>
+        </div>
+
+        <!-- Signed in -->
+        <div class="account-card" data-auth="signed-in" hidden>
+          <div class="account-card__identity">
+            <img class="account-avatar" src="" alt="" width="64" height="64" data-auth-avatar hidden>
+            <div>
+              <p class="account-card__eyebrow">Signed in as</p>
+              <h2 data-auth-username>Member</h2>
+            </div>
+          </div>
+
+          <h3 class="account-card__subhead">What you can do</h3>
+          <ul class="account-perks">
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5L16 9"/></svg>
+              <div>
+                <strong>Apply for a position</strong>
+                <p>Your application is tied to this account, so staff can reply to you on Discord.</p>
+              </div>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5L16 9"/></svg>
+              <div>
+                <strong>Join the queue</strong>
+                <p>Request an invite to the server and get it straight away.</p>
+              </div>
+            </li>
+            <li data-auth-permission="isPilot" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5L16 9"/></svg>
+              <div>
+                <strong>Apply for ATC</strong>
+                <p>You hold the Pilot role, so the controller application is open to you.</p>
+              </div>
+            </li>
+            <li data-auth-permission="isAtc" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5L16 9"/></svg>
+              <div>
+                <strong>View the Radar</strong>
+                <p>You hold the controller role, so the live board is available to you.</p>
+              </div>
+            </li>
+          </ul>
+
+          <div class="btn-row mt-4">
+            <a class="btn btn--primary" href="../radar/" data-auth-permission="isAtc">Open the Radar</a>
+            <a class="btn btn--secondary" href="../join/">Join the server</a>
+            <a class="btn btn--secondary" href="../applications/atc/" data-auth-permission="isPilot">ATC application</a>
+            <button class="btn btn--ghost" type="button" data-auth-signout>Sign out</button>
+          </div>
+        </div>
+
+        <!-- Still loading -->
+        <div class="account-card" data-account-pending>
+          <p class="form__loading">Checking your session…</p>
+        </div>
+
+      </div>
+
+      <div class="callout callout--info mt-5">
+        <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+        <div>
+          <p class="callout__title">Roles are read from Discord</p>
+          <p>Everything on your account is derived from the roles you hold on our Discord server. We do not keep a separate copy of your permissions, so promoting or demoting someone takes effect here immediately.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container">
+      <div class="cta-band cta-band--split reveal" id="discord">
+        <div>
+          <h2>Not ready to sign in?</h2>
+          <p>Everything except applications, the queue, and the Radar works without an account. The Discord is where the community actually lives.</p>
+          <div class="btn-row cta-band__actions">
+            <a class="btn btn--discord btn--lg" href="#" data-config="discordInvite" data-external>Join the Discord</a>
+            <a class="btn btn--secondary btn--lg" href="../rules/">Read the rules</a>
+          </div>
+        </div>
+        <div class="cta-band__panel">
+          <h3>Where to go next</h3>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> <a href="../applications/">Applications</a></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> <a href="../join/">Join the server</a></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> <a href="../operations/">How the network runs</a></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> <a href="../contact/">Contact us</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="site-footer__top">
+      <div>
+        <a class="brand" href="../index.html">
+          <img src="https://bronkbuilder-website-assets.s3.us-east-2.amazonaws.com/users/7540dd9d-b3dd-417b-ac81-19a86ea854a6/websites/7021253e-9e81-4fb2-ac17-e9548c9e078b/LOGO/30662df8-c658-4ee5-a220-9153bd847fa3.webp" alt="Latitude ATC" width="120" height="34">
+          <span class="brand__text">
+            <span class="brand__name">Latitude ATC</span>
+            <span class="brand__tag">Roblox Network</span>
+          </span>
+        </a>
+        <p class="site-footer__blurb">A Roblox-based air traffic control community for pilots and controllers who want organised, realistic and enjoyable operations.</p>
+      </div>
+
+      <div>
+        <h2 class="site-footer__heading">Explore</h2>
+        <ul class="site-footer__links">
+          <li><a href="../about/">About</a></li>
+          <li><a href="../operations/">Operations</a></li>
+          <li><a href="../radar/">Radar</a></li>
+          <li><a href="../rules/">Rules</a></li>
+          <li><a href="../contact/">Contact</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="site-footer__heading">Community</h2>
+        <ul class="site-footer__links">
+          <li><a href="#" data-config="discordInvite" data-external>Discord</a></li>
+          <li><a href="#" data-config="robloxGameUrl" data-external>Roblox</a></li>
+          <li><a href="#" data-config="robloxGroupUrl" data-external>Roblox Group</a></li>
+          <li><a href="../account/">Your account</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="site-footer__heading">Get involved</h2>
+        <ul class="site-footer__links">
+          <li><a href="../join/">Join the queue</a></li>
+          <li><a href="../applications/pilot/">Pilot application</a></li>
+          <li><a href="../applications/atc/">Controller application</a></li>
+          <li><a href="../applications/">All applications</a></li>
+          <li><a href="#" data-config="rulebookUrl" data-external>Rulebook</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="site-footer__bottom">
+      <p class="site-footer__copy">&copy; <span id="year">2026</span> Latitude ATC. All rights reserved. <span class="site-footer__domain">latcm.co.uk</span></p>
+      <p class="disclaimer"><strong>Disclaimer:</strong> Latitude ATC is an independent Roblox aviation community and is not affiliated with Roblox Corporation or any real-world aviation authority unless explicitly stated.</p>
+    </div>
+  </div>
+</footer>
+
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="../assets/js/api.js" defer></script>
+<script src="../assets/js/theme.js" defer></script>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/auth.js" defer></script>
+<script>document.getElementById("year").textContent = new Date().getFullYear();</script>
+</body>
+</html>

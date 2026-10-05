@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operations — Latitude ATC</title>
+<meta name="description" content="How Latitude ATC operates on Roblox: controller positions from Ground to Approach, clearances, taxi instructions, separation, communication standards and training.">
+<meta name="theme-color" content="#080f1c">
+<link rel="canonical" href="https://latcm.co.uk/operations/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://latcm.co.uk/operations/">
+<meta property="og:site_name" content="Latitude ATC">
+<meta property="og:title" content="Operations — Latitude ATC">
+<meta property="og:description" content="Controller positions, clearances, separation, communication standards and training.">
+<meta property="og:image" content="https://bronkbuilder-website-assets.s3.us-east-2.amazonaws.com/users/7540dd9d-b3dd-417b-ac81-19a86ea854a6/websites/7021253e-9e81-4fb2-ac17-e9548c9e078b/HERO/c0720a09-dfff-4811-b9b7-5396b8fae0d2.webp">
+<meta property="og:image:alt" content="Aircraft flying over a landscape in a flight simulator scene">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="icon" href="../assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../assets/icons/favicon.svg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@600;700&display=swap">
+<link rel="stylesheet" href="../assets/css/main.css">
+
+<script>
+/* Applied before first paint so a returning visitor never sees a flash of the
+   wrong theme. Dark is the default, set in CSS; this only handles the choice. */
+(function () {
+    try {
+        if (window.localStorage.getItem("latc-theme") === "light") {
+            document.documentElement.setAttribute("data-theme", "light");
+        }
+    } catch (error) {
+        /* Storage can be blocked. The default still applies. */
+    }
+})();
+</script>
+</head>
+
+<body>
+<div class="page-shell">
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="brand" href="../index.html" aria-label="Latitude ATC — home">
+      <img src="https://bronkbuilder-website-assets.s3.us-east-2.amazonaws.com/users/7540dd9d-b3dd-417b-ac81-19a86ea854a6/websites/7021253e-9e81-4fb2-ac17-e9548c9e078b/LOGO/30662df8-c658-4ee5-a220-9153bd847fa3.webp" alt="Latitude ATC" width="120" height="34">
+      <span class="brand__text">
+        <span class="brand__name">Latitude ATC</span>
+        <span class="brand__tag">Roblox Network</span>
+      </span>
+    </a>
+
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+      <span class="visually-hidden">Toggle navigation</span>
+      <span class="nav-toggle__bar" aria-hidden="true"></span>
+    </button>
+
+    <nav class="nav" id="primary-nav" aria-label="Primary">
+      <ul class="nav__list">
+        <li><a class="nav__link" href="../index.html">Home</a></li>
+        <li><a class="nav__link" href="../about/">About</a></li>
+        <li><a class="nav__link" href="../operations/" aria-current="page">Operations</a></li>
+        <li><a class="nav__link" href="../radar/">Radar</a></li>
+        <li><a class="nav__link" href="../rules/">Rules</a></li>
+        <li><a class="nav__link" href="../applications/">Applications</a></li>
+      </ul>
+      <div class="nav__actions">
+        <button class="icon-btn" type="button" data-theme-toggle aria-pressed="false">
+          <svg class="icon-btn__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
+          <svg class="icon-btn__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <span class="visually-hidden" data-theme-label>Light theme</span>
+        </button>
+        <a class="btn btn--secondary btn--sm" href="../account/" data-auth="signed-out">Sign in</a>
+        <a class="btn btn--primary btn--sm" href="../account/" data-auth="signed-in"><span data-auth-username>Account</span></a>
+        <a class="btn btn--discord btn--sm" href="#discord" data-config="discordInvite" data-external>Join Discord</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="page-hero">
+    <div class="container page-hero__inner">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="../index.html">Home</a>
+        <span class="breadcrumb__sep" aria-hidden="true">/</span>
+        <span aria-current="page">Operations</span>
+      </nav>
+      <p class="eyebrow">Operations Manual</p>
+      <h1>How we run the network</h1>
+      <p class="lead">This page describes how Latitude ATC operates inside Roblox. It covers both sides of the network, the controller positions, and the standards we hold ourselves to.</p>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container">
+      <div class="callout callout--plain reveal">
+        <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+        <div>
+          <p class="callout__title">Scope of this manual</p>
+          <p>Everything below applies to the Latitude ATC Roblox community only. It is not real-world air traffic guidance, and we hold no authority over any actual aircraft or airspace.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Two sides ================= -->
+  <section class="section">
+    <div class="container">
+      <div class="section__head section__head--center reveal">
+        <p class="eyebrow">On The Network</p>
+        <h2>Pilot and controller operations</h2>
+        <p class="lead">A session works when both sides know what they are doing. These are the responsibilities on each side.</p>
+      </div>
+
+      <div class="grid grid--2">
+        <article class="card card--accent reveal">
+          <span class="card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2.5c.9 3.2.9 5 0 7.4-.9 2.4-2.6 3.6-4.6 4.4l8.2 5.1-1.6 2.3-9-3.6-1.5 3.4-1.6-.7 1.6-4.6L2 16.2l.8-2.6 8-1.3"/></svg></span>
+          <h3 class="card__title">Pilot operations</h3>
+          <p class="card__text">Pilots are expected to operate their aircraft properly and to cooperate with the controller assigned to them.</p>
+          <ul class="card__list">
+            <li>Request permission to taxi and a departure clearance before moving.</li>
+            <li>Follow the taxi instructions given, including assigned gates and routes.</li>
+            <li>Comply with every clearance. Ask for clarification rather than guessing.</li>
+            <li>Stay on published procedures and observe any stated restrictions.</li>
+            <li>Keep radio discipline and remain attentive to instructions.</li>
+            <li>Never cause or allow an intentional collision.</li>
+          </ul>
+        </article>
+
+        <article class="card card--accent reveal" data-delay="1">
+          <span class="card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 16V9a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v7"/><rect x="4" y="16" width="16" height="3" rx="1.4"/></svg></span>
+          <h3 class="card__title">ATC operations</h3>
+          <p class="card__text">Controllers manage the flow of traffic on the network and are responsible for keeping operations organised.</p>
+          <ul class="card__list">
+            <li>Only work a position you are currently authorised for.</li>
+            <li>Issue clearances and taxi instructions clearly and without delay.</li>
+            <li>Maintain separation between aircraft at all times.</li>
+            <li>Coordinate traffic with the neighbouring position before handing over.</li>
+            <li>Brief arriving pilots on anything relevant to their flight.</li>
+            <li>Log and report issues so staff can follow up.</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Positions ================= -->
+  <section class="section section--alt">
+    <div class="container split">
+      <div class="reveal">
+        <p class="eyebrow">Positions</p>
+        <h2>The position ladder</h2>
+        <p class="lead mt-2">Controllers work in four positions. Each one carries more responsibility than the last, and you move through them as you gain experience.</p>
+        <p class="mt-2">New controllers begin at <strong>Ground</strong>. You only move to the next position once you are comfortable and have been signed off by staff.</p>
+        <div class="callout mt-4">
+          <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v18M4 12h16" opacity=".5"/><circle cx="12" cy="12" r="9"/></svg>
+          <div>
+            <p class="callout__title">Authorisation matters</p>
+            <p>Working a position without the relevant authorisation is against the rules, no matter how experienced you feel.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal" data-delay="1">
+        <div class="position-list">
+          <article class="position">
+            <span class="position__no">01</span>
+            <div>
+              <h4>Ground</h4>
+              <p>Handles taxiing, parking and departure routing. Where every new controller begins — it is the best place to learn how the network fits together.</p>
+            </div>
+          </article>
+          <article class="position">
+            <span class="position__no">02</span>
+            <div>
+              <h4>Local</h4>
+              <p>Sequences departures and hands aircraft off to the next position. You begin coordinating with Tower rather than working alone.</p>
+            </div>
+          </article>
+          <article class="position">
+            <span class="position__no">03</span>
+            <div>
+              <h4>Tower</h4>
+              <p>Issues landing clearances, manages runway coordination and handles arrivals within the field.</p>
+            </div>
+          </article>
+          <article class="position">
+            <span class="position__no">04</span>
+            <div>
+              <h4>Approach</h4>
+              <p>Manages arriving traffic and sequences aircraft towards the field, coordinating with Tower on the handover.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Clearances ================= -->
+  <section class="section">
+    <div class="container">
+      <div class="section__head reveal">
+        <p class="eyebrow">Clearances</p>
+        <h2>Clearances and taxi instructions</h2>
+        <p class="lead">Clearances are permission to do something. If you have not been given it, do not assume it. This is the single most common source of confusion on the network.</p>
+      </div>
+
+      <div class="grid grid--2">
+        <article class="card reveal">
+          <h3 class="card__title">For pilots</h3>
+          <ul class="card__list">
+            <li>Do not move on your own until you have been told to. If you did not hear it, ask again.</li>
+            <li>Read back clearances that require it, and confirm your assigned gate.</li>
+            <li>Leave the runway as soon as you are clear. Holding up traffic helps nobody.</li>
+            <li>If you miss an instruction, tell the controller rather than guessing.</li>
+            <li>Keep all communications on the assigned channel.</li>
+          </ul>
+        </article>
+        <article class="card reveal" data-delay="1">
+          <h3 class="card__title">For controllers</h3>
+          <ul class="card__list">
+            <li>Be clear and concise. Standard phrasing reduces misunderstanding for everyone.</li>
+            <li>Issue instructions to one aircraft at a time and confirm they were heard.</li>
+            <li>Do not issue a clearance the pilot has not requested or is not ready for.</li>
+            <li>Anticipate conflicts and resolve them before they develop.</li>
+            <li>Never delegate a position to someone who is not authorised for it.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="callout callout--danger mt-4 reveal">
+        <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l9 17H3z"/><path d="M12 9v5M12 17h.01"/></svg>
+        <div>
+          <p class="callout__title">Emergency scenarios are not permitted</p>
+          <p>Do not roleplay or simulate an emergency under any circumstances. This includes declared MAYDAY and PAN calls, as well as less formal emergency scenarios used for fun. There is no exception to this rule.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Communication ================= -->
+  <section class="section section--alt">
+    <div class="container">
+      <div class="section__head section__head--center reveal">
+        <p class="eyebrow">Communication</p>
+        <h2>Communication standards</h2>
+        <p class="lead">Everyone on the network speaks the same way. That consistency is what makes it easy for new members to join in.</p>
+      </div>
+
+      <div class="grid grid--3">
+        <article class="card reveal">
+          <span class="card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12v-1a8 8 0 0 1 16 0v1"/><path d="M4 12v5h3v-5zM20 12v5h-3v-5z"/></svg></span>
+          <h3 class="card__title">Use the assigned channel</h3>
+          <p class="card__text">Each position and frequency has a purpose. Traffic goes where it is supposed to go, which keeps the channels readable.</p>
+        </article>
+        <article class="card reveal" data-delay="1">
+          <span class="card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <h3 class="card__title">Keep it brief</h3>
+          <p class="card__text">Short, accurate transmissions. Say what you need, and nothing that distracts other aircraft.</p>
+        </article>
+        <article class="card reveal" data-delay="2">
+          <span class="card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>
+          <h3 class="card__title">Answer the question</h3>
+          <p class="card__text">When a controller asks for something, respond. Queries about whether you are exempt or simply curious are fine — asking is always allowed.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Separation ================= -->
+  <section class="section">
+    <div class="container split">
+      <div class="reveal">
+        <p class="eyebrow">Separation</p>
+        <h2>Keeping traffic separated</h2>
+        <p class="lead mt-2">Separation means making sure aircraft are never placed in a situation where they could conflict. On the ground it is mostly about spacing and sequence; in the air it is about sequencing and altitude.</p>
+        <p class="mt-2">Controllers are responsible for maintaining separation on their position. Pilots are responsible for following the clearances they are given.</p>
+        <p class="mt-2">Neither side is ever in trouble for asking a question. Both sides are in trouble for pressing on without communicating.</p>
+      </div>
+
+      <div class="reveal" data-delay="1">
+        <div class="stack">
+          <article class="card">
+            <h3 class="card__title">On the ground</h3>
+            <ul class="card__list">
+              <li>Sequence departures so only one aircraft is moving into a runway at a time.</li>
+              <li>Do not issue a takeoff instruction to an aircraft that is not ready.</li>
+              <li>Keep the runway clear once an aircraft is cleared to land.</li>
+              <li>Watch for aircraft holding on taxiways blocking a route.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3 class="card__title">In the air</h3>
+            <ul class="card__list">
+              <li>Sequence arriving aircraft and brief them on traffic where relevant.</li>
+              <li>Coordinate the handover between positions before an aircraft arrives.</li>
+              <li>Resolve developing conflicts early, not after they have developed.</li>
+              <li>Never intentionally create a conflict, however temporary.</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Training ================= -->
+  <section class="section section--alt">
+    <div class="container">
+      <div class="section__head reveal">
+        <p class="eyebrow">Training</p>
+        <h2>Training and progression</h2>
+        <p class="lead">Nobody is expected to know what they are doing from the first session. Here is how new members get up to speed.</p>
+      </div>
+
+      <div class="steps">
+        <article class="step reveal">
+          <h3>Apply</h3>
+          <p>Submit an application for the role you want and wait for staff to review it.</p>
+        </article>
+        <article class="step reveal" data-delay="1">
+          <h3>Verify</h3>
+          <p>Confirm your Roblox account through the verification process in Discord.</p>
+        </article>
+        <article class="step reveal" data-delay="2">
+          <h3>Training</h3>
+          <p>Work alongside an experienced member and learn the position with supervision.</p>
+        </article>
+        <article class="step reveal" data-delay="3">
+          <h3>Sign off</h3>
+          <p>Once staff are satisfied, you are authorised for that position and can work independently.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CTA ================= -->
+  <section class="section section--tight">
+    <div class="container">
+      <div class="cta-band cta-band--split reveal" id="discord">
+        <div>
+          <h2>Ready to take a position?</h2>
+          <p>Read the rules, then submit an application. We will take it from there.</p>
+          <div class="btn-row cta-band__actions">
+            <a class="btn btn--primary btn--lg" href="../applications/">Apply now</a>
+            <a class="btn btn--secondary btn--lg" href="../rules/">Read the rules</a>
+          </div>
+        </div>
+        <div class="cta-band__panel">
+          <h3>Position summary</h3>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> <strong>Ground</strong> — taxi, parking, departures</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> <strong>Local</strong> — departure sequencing</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> <strong>Tower</strong> — runway and arrivals</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> <strong>Approach</strong> — inbound sequencing</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="site-footer__top">
+      <div>
+        <a class="brand" href="../index.html">
+          <img src="https://bronkbuilder-website-assets.s3.us-east-2.amazonaws.com/users/7540dd9d-b3dd-417b-ac81-19a86ea854a6/websites/7021253e-9e81-4fb2-ac17-e9548c9e078b/LOGO/30662df8-c658-4ee5-a220-9153bd847fa3.webp" alt="Latitude ATC" width="120" height="34">
+          <span class="brand__text">
+            <span class="brand__name">Latitude ATC</span>
+            <span class="brand__tag">Roblox Network</span>
+          </span>
+        </a>
+        <p class="site-footer__blurb">A Roblox-based air traffic control community for pilots and controllers who want organised, realistic and enjoyable operations.</p>
+      </div>
+
+      <div>
+        <h2 class="site-footer__heading">Explore</h2>
+        <ul class="site-footer__links">
+          <li><a href="../about/">About</a></li>
+          <li><a href="../operations/">Operations</a></li>
+          <li><a href="../radar/">Radar</a></li>
+          <li><a href="../rules/">Rules</a></li>
+          <li><a href="../contact/">Contact</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="site-footer__heading">Community</h2>
+        <ul class="site-footer__links">
+          <li><a href="#" data-config="discordInvite" data-external>Discord</a></li>
+          <li><a href="#" data-config="robloxGameUrl" data-external>Roblox</a></li>
+          <li><a href="#" data-config="robloxGroupUrl" data-external>Roblox Group</a></li>
+          <li><a href="../account/">Your account</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="site-footer__heading">Get involved</h2>
+        <ul class="site-footer__links">
+          <li><a href="../join/">Join the queue</a></li>
+          <li><a href="../applications/pilot/">Pilot application</a></li>
+          <li><a href="../applications/atc/">Controller application</a></li>
+          <li><a href="../applications/">All applications</a></li>
+          <li><a href="#" data-config="rulebookUrl" data-external>Rulebook</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="site-footer__bottom">
+      <p class="site-footer__copy">&copy; <span id="year">2026</span> Latitude ATC. All rights reserved. <span class="site-footer__domain">latcm.co.uk</span></p>
+      <p class="disclaimer"><strong>Disclaimer:</strong> Latitude ATC is an independent Roblox aviation community and is not affiliated with Roblox Corporation or any real-world aviation authority unless explicitly stated.</p>
+    </div>
+  </div>
+</footer>
+
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="../assets/js/api.js" defer></script>
+<script src="../assets/js/theme.js" defer></script>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/auth.js" defer></script>
+<script>document.getElementById("year").textContent = new Date().getFullYear();</script>
+</body>
+</html>

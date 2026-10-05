@@ -1,0 +1,24 @@
+{
+  "$comment": "Stand-in for a reopened staff question set. Used by the test that proves staff intake can be switched back on, pointing at it through LATC_DATA_DIR.",
+  "role": "staff",
+  "title": "Staff application",
+  "intro": "Staff applications are open.",
+  "closed": false,
+  "questions": [
+    {
+      "name": "robloxUsername",
+      "label": "Roblox username",
+      "type": "text",
+      "required": true,
+      "maxLength": 32
+    },
+    {
+      "name": "experience",
+      "label": "Moderation experience",
+      "type": "textarea",
+      "required": true,
+      "rows": 4,
+      "maxLength": 1000
+    }
+  ]
+}

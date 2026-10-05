@@ -1,0 +1,9 @@
+{
+  "$comment": "Staff intake is closed, so the question list is empty rather than filled in: even if the closed flag were overridden by mistake there is nothing to submit. Reopening staff means writing the questions here AND setting APPLICATIONS_STAFF_OPEN=true on the server. Until then a staff submission is refused on purpose.",
+  "role": "staff",
+  "title": "Staff application",
+  "intro": "Staff applications are currently closed.",
+  "closed": true,
+  "closedNote": "Staff roles open in batches and are announced in Discord. Watch the announcements channel to hear when the next batch opens.",
+  "questions": []
+}

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rules — Latitude ATC</title>
+<meta name="description" content="The Latitude ATC rulebook for pilots and controllers on Roblox. General, pilot, ATC, game and community rules, including the ban on simulated emergency scenarios.">
+<meta name="theme-color" content="#080f1c">
+<link rel="canonical" href="https://latcm.co.uk/rules/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://latcm.co.uk/rules/">
+<meta property="og:site_name" content="Latitude ATC">
+<meta property="og:title" content="Rules — Latitude ATC">
+<meta property="og:description" content="General, pilot, ATC, game and community rules for the Latitude ATC network.">
+<meta property="og:image" content="https://bronkbuilder-website-assets.s3.us-east-2.amazonaws.com/users/7540dd9d-b3dd-417b-ac81-19a86ea854a6/websites/7021253e-9e81-4fb2-ac17-e9548c9e078b/HERO/c0720a09-dfff-4811-b9b7-5396b8fae0d2.webp">
+<meta property="og:image:alt" content="Aircraft flying over a landscape in a flight simulator scene">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="icon" href="../assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../assets/icons/favicon.svg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@600;700&display=swap">
+<link rel="stylesheet" href="../assets/css/main.css">
+
+<script>
+/* Applied before first paint so a returning visitor never sees a flash of the
+   wrong theme. Dark is the default, set in CSS; this only handles the choice. */
+(function () {
+    try {
+        if (window.localStorage.getItem("latc-theme") === "light") {
+            document.documentElement.setAttribute("data-theme", "light");
+        }
+    } catch (error) {
+        /* Storage can be blocked. The default still applies. */
+    }
+})();
+</script>
+</head>
+
+<body>
+<div class="page-shell">
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="brand" href="../index.html" aria-label="Latitude ATC — home">
+      <img src="https://bronkbuilder-website-assets.s3.us-east-2.amazonaws.com/users/7540dd9d-b3dd-417b-ac81-19a86ea854a6/websites/7021253e-9e81-4fb2-ac17-e9548c9e078b/LOGO/30662df8-c658-4ee5-a220-9153bd847fa3.webp" alt="Latitude ATC" width="120" height="34">
+      <span class="brand__text">
+        <span class="brand__name">Latitude ATC</span>
+        <span class="brand__tag">Roblox Network</span>
+      </span>
+    </a>
+
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+      <span class="visually-hidden">Toggle navigation</span>
+      <span class="nav-toggle__bar" aria-hidden="true"></span>
+    </button>
+
+    <nav class="nav" id="primary-nav" aria-label="Primary">
+      <ul class="nav__list">
+        <li><a class="nav__link" href="../index.html">Home</a></li>
+        <li><a class="nav__link" href="../about/">About</a></li>
+        <li><a class="nav__link" href="../operations/">Operations</a></li>
+        <li><a class="nav__link" href="../radar/">Radar</a></li>
+        <li><a class="nav__link" href="../rules/" aria-current="page">Rules</a></li>
+        <li><a class="nav__link" href="../applications/">Applications</a></li>
+      </ul>
+      <div class="nav__actions">
+        <button class="icon-btn" type="button" data-theme-toggle aria-pressed="false">
+          <svg class="icon-btn__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
+          <svg class="icon-btn__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <span class="visually-hidden" data-theme-label>Light theme</span>
+        </button>
+        <a class="btn btn--secondary btn--sm" href="../account/" data-auth="signed-out">Sign in</a>
+        <a class="btn btn--primary btn--sm" href="../account/" data-auth="signed-in"><span data-auth-username>Account</span></a>
+        <a class="btn btn--discord btn--sm" href="#discord" data-config="discordInvite" data-external>Join Discord</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="page-hero">
+    <div class="container page-hero__inner">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="../index.html">Home</a>
+        <span class="breadcrumb__sep" aria-hidden="true">/</span>
+        <span aria-current="page">Rules</span>
+      </nav>
+      <p class="eyebrow">Rulebook</p>
+      <h1>Short, clear, and non-negotiable</h1>
+      <p class="lead">Ten rules cover everything we ask of members on the network. They exist to keep sessions safe, fair and enjoyable for pilots and controllers alike.</p>
+      <div class="btn-row mt-3">
+        <a class="btn btn--secondary" href="#general">Jump to the rules</a>
+        <a class="btn btn--quiet" href="#" data-config="rulebookUrl" data-external>Open the full rulebook</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Rules ================= -->
+  <section class="section" id="general">
+    <div class="container rulebook">
+
+      <!-- General -->
+      <div class="section__head reveal">
+        <p class="eyebrow">General Rules</p>
+        <h2>Applies to everyone</h2>
+        <p class="lead">These rules apply to every member of the community, on and off the network, without exception.</p>
+      </div>
+
+      <div class="rules">
+        <article class="rule reveal">
+          <div class="rule__body">
+            <h3>Follow ATC instructions</h3>
+            <p>Any instruction given by an authorised controller must be followed. If an instruction is unclear or unsafe, ask before continuing.</p>
+            <span class="rule__tag chip chip--grey">General</span>
+          </div>
+        </article>
+        <article class="rule reveal">
+          <div class="rule__body">
+            <h3>No fake ATC</h3>
+            <p>Only authorised controllers may issue instructions. Impersonating a control position or giving orders you have no authority to give is not permitted.</p>
+            <span class="rule__tag chip chip--grey">General</span>
+          </div>
+        </article>
+      </div>
+
+      <!-- Pilot -->
+      <div class="section__head reveal mt-5">
+        <p class="eyebrow">Pilot Rules</p>
+        <h2>Applies to pilots</h2>
+        <p class="lead">For members who hold an approved pilot application and fly on the network.</p>
+      </div>
+
+      <div class="rules">
+        <article class="rule reveal">
+          <div class="rule__body">
+            <h3>Follow clearances</h3>
+            <p>Comply with every clearance you receive, including taxi, hold and departure instructions. Never act on an instruction you have not been given.</p>
+            <span class="rule__tag chip chip--grey">Pilot</span>
+          </div>
+        </article>
+        <article class="rule reveal">
+          <div class="rule__body">
+            <h3>No intentional collisions</h3>
+            <p>Intentionally causing, allowing or staging a collision with another aircraft is strictly prohibited.</p>
+            <span class="rule__tag chip chip--grey">Pilot</span>
+          </div>
+        </article>
+        <article class="rule reveal">
+          <div class="rule__body">
+            <h3>No runway abuse</h3>
+            <p>Do not take off, land, taxi or occupy a runway without the required clearance, and do not block a runway used by other traffic.</p>
+            <span class="rule__tag chip chip--grey">Pilot</span>
+          </div>
+        </article>
+      </div>
+
+      <!-- ATC -->
+      <div class="section__head reveal mt-5">
+        <p class="eyebrow">ATC Rules</p>
+        <h2>Applies to controllers</h2>
+        <p class="lead">For members who are authorised to work an air traffic control position.</p>
+      </div>
+
+      <div class="rules">
+        <article class="rule reveal">
+          <div class="rule__body">
+            <h3>Controllers must be authorised</h3>
+            <p>You may only work a position for which you hold current authorisation. Authorisation can be suspended at any time.</p>
+            <span class="rule__tag chip chip--grey">ATC</span>
+          </div>
+        </article>
+      </div>
+
+      <!-- Game -->
+      <div class="section__head reveal mt-5">
+        <p class="eyebrow">Game Rules</p>
+        <h2>Applies to everyone in-game</h2>
+        <p class="lead">These rules govern behaviour inside the Roblox experience itself.</p>
+      </div>
+
+      <div class="rules">
+        <article class="rule rule--prohibited reveal">
+          <div class="rule__body">
+            <h3>No emergency scenarios</h3>
+            <p>Emergency scenarios are not permitted. This includes simulated MAYDAY and PAN calls, medical or mechanical emergencies, and any emergency used as roleplay. No exceptions.</p>
+            <span class="rule__tag chip">Prohibited</span>
+          </div>
+        </article>
+        <article class="rule reveal">
+          <div class="rule__body">
+            <h3>No intentional disruptions</h3>
+            <p>Do not disrupt other members' sessions through trolling, spamming, deliberate radio interference, or repeatedly interfering with traffic.</p>
+            <span class="rule__tag chip chip--grey">Game</span>
+          </div>
+        </article>
+        <article class="rule reveal">
+          <div class="rule__body">
+            <h3>No exploiting</h3>
+            <p>Using exploits, glitches, scripts or unintended game mechanics to gain an advantage is forbidden, as is exploiting bugs in the community's systems.</p>
+            <span class="rule__tag chip chip--grey">Game</span>
+          </div>
+        </article>
+      </div>
+
+      <!-- Community -->
+      <div class="section__head reveal mt-5">
+        <p class="eyebrow">Community Rules</p>
+        <h2>Applies to all community spaces</h2>
+        <p class="lead">Our Discord and other community spaces follow the same expectations as the network.</p>
+      </div>
+
+      <div class="rules">
+        <article class="rule reveal">
+          <div class="rule__body">
+            <h3>Respect other players</h3>
+            <p>Treat every member with respect, in-game and in our community spaces. Harassment, discrimination or personal attacks have no place on the network or in Discord.</p>
+            <span class="rule__tag chip chip--grey">Community</span>
+          </div>
+        </article>
+      </div>
+
+      <div class="callout callout--danger mt-5 reveal">
+        <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l9 17H3z"/><path d="M12 9v5M12 17h.01"/></svg>
+        <div>
+          <p class="callout__title">Emergency scenarios are not permitted</p>
+          <p>To be completely clear: no member may roleplay a simulated emergency of any kind, including MAYDAY and PAN. This is one of the strictest rules on the network and staff will enforce it.</p>
+        </div>
+      </div>
+
+      <div class="callout callout--warn mt-3 reveal">
+        <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <div>
+          <p class="callout__title">Breaking a rule</p>
+          <p>Staff may issue a warning, remove a member from a session, or suspend your application depending on the severity of the breach. Repeated breaches can end your membership of the network.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= CTA ================= -->
+  <section class="section section--tight">
+    <div class="container">
+      <div class="cta-band cta-band--split reveal" id="discord">
+        <div>
+          <h2>Read it, understood it, ready to apply?</h2>
+          <p>Every application asks whether you have read the rules. Come to Discord if anything is unclear before you submit.</p>
+          <div class="btn-row cta-band__actions">
+            <a class="btn btn--primary btn--lg" href="../applications/">View applications</a>
+            <a class="btn btn--discord btn--lg" href="#" data-config="discordInvite" data-external>Ask a question</a>
+          </div>
+        </div>
+        <div class="cta-band__panel">
+          <h3>The rules in short</h3>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> Follow instructions from authorised ATC.</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> Never cause or stage a collision.</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> Work only positions you are authorised for.</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg> Never roleplay an emergency scenario.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="site-footer__top">
+      <div>
+        <a class="brand" href="../index.html">
+          <img src="https://bronkbuilder-website-assets.s3.us-east-2.amazonaws.com/users/7540dd9d-b3dd-417b-ac81-19a86ea854a6/websites/7021253e-9e81-4fb2-ac17-e9548c9e078b/LOGO/30662df8-c658-4ee5-a220-9153bd847fa3.webp" alt="Latitude ATC" width="120" height="34">
+          <span class="brand__text">
+            <span class="brand__name">Latitude ATC</span>
+            <span class="brand__tag">Roblox Network</span>
+          </span>
+        </a>
+        <p class="site-footer__blurb">A Roblox-based air traffic control community for pilots and controllers who want organised, realistic and enjoyable operations.</p>
+      </div>
+
+      <div>
+        <h2 class="site-footer__heading">Explore</h2>
+        <ul class="site-footer__links">
+          <li><a href="../about/">About</a></li>
+          <li><a href="../operations/">Operations</a></li>
+          <li><a href="../radar/">Radar</a></li>
+          <li><a href="../rules/">Rules</a></li>
+          <li><a href="../contact/">Contact</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="site-footer__heading">Community</h2>
+        <ul class="site-footer__links">
+          <li><a href="#" data-config="discordInvite" data-external>Discord</a></li>
+          <li><a href="#" data-config="robloxGameUrl" data-external>Roblox</a></li>
+          <li><a href="#" data-config="robloxGroupUrl" data-external>Roblox Group</a></li>
+          <li><a href="../account/">Your account</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="site-footer__heading">Get involved</h2>
+        <ul class="site-footer__links">
+          <li><a href="../join/">Join the queue</a></li>
+          <li><a href="../applications/pilot/">Pilot application</a></li>
+          <li><a href="../applications/atc/">Controller application</a></li>
+          <li><a href="../applications/">All applications</a></li>
+          <li><a href="#" data-config="rulebookUrl" data-external>Rulebook</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="site-footer__bottom">
+      <p class="site-footer__copy">&copy; <span id="year">2026</span> Latitude ATC. All rights reserved. <span class="site-footer__domain">latcm.co.uk</span></p>
+      <p class="disclaimer"><strong>Disclaimer:</strong> Latitude ATC is an independent Roblox aviation community and is not affiliated with Roblox Corporation or any real-world aviation authority unless explicitly stated.</p>
+    </div>
+  </div>
+</footer>
+
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="../assets/js/api.js" defer></script>
+<script src="../assets/js/theme.js" defer></script>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/auth.js" defer></script>
+<script>document.getElementById("year").textContent = new Date().getFullYear();</script>
+</body>
+</html>

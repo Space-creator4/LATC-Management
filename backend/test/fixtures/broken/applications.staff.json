@@ -1,0 +1,10 @@
+{
+  "$comment": "Deliberately broken question set: `type` is not a supported field type and `name` is repeated. Used to prove a bad JSON file produces a clear 500 instead of taking the service down at boot.",
+  "role": "staff",
+  "title": "Broken staff application",
+  "intro": "This file is invalid on purpose.",
+  "questions": [
+    { "name": "robloxUsername", "label": "Roblox username", "type": "text" },
+    { "name": "robloxUsername", "label": "Duplicate", "type": "not-a-real-type" }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "$comment": "Question set for the pilot application. The website renders these fields from this file, and the backend validates against it, so the two can never drift apart. Edit here, not in the HTML.",
+  "role": "pilot",
+  "title": "Pilot application",
+  "intro": "Tell us a little about yourself and why you want to fly with us.",
+  "questions": [
+    {
+      "name": "robloxUsername",
+      "label": "Roblox username",
+      "type": "text",
+      "required": true,
+      "autocomplete": "username",
+      "hint": "The name you appear under in Roblox.",
+      "maxLength": 32
+    },
+    {
+      "name": "discordUsername",
+      "label": "Discord username",
+      "type": "text",
+      "required": true,
+      "autocomplete": "off",
+      "hint": "So we can find you when we reply.",
+      "maxLength": 64
+    },
+    {
+      "name": "age",
+      "label": "Age",
+      "type": "number",
+      "required": true,
+      "min": 13,
+      "max": 120,
+      "hint": "Roblox accounts must belong to players aged 13 or over."
+    },
+    {
+      "name": "experience",
+      "label": "Previous aviation experience",
+      "type": "textarea",
+      "required": true,
+      "rows": 4,
+      "maxLength": 1000,
+      "placeholder": "Flight simulators, other Roblox servers, real aviation, or none at all."
+    },
+    {
+      "name": "availability",
+      "label": "Typical availability",
+      "type": "select",
+      "required": true,
+      "options": [
+        { "value": "weekday", "label": "Weekdays" },
+        { "value": "weekend", "label": "Weekends" },
+        { "value": "evenings", "label": "Evenings" },
+        { "value": "flexible", "label": "Flexible" }
+      ]
+    },
+    {
+      "name": "motivation",
+      "label": "Why do you want to join?",
+      "type": "textarea",
+      "required": true,
+      "rows": 5,
+      "maxLength": 2000
+    },
+    {
+      "name": "agreedRules",
+      "label": "I have read the rules and agree to follow them.",
+      "type": "checkbox",
+      "required": true
+    }
+  ]
+}

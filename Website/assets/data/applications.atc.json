@@ -1,0 +1,101 @@
+{
+  "$comment": "Question set for the ATC application. Only accepted pilots get this form: the page gates it behind a question, and the backend refuses the role unless the applicant's Discord account already holds the pilot role.",
+  "role": "atc",
+  "title": "ATC application",
+  "intro": "ATC is open to accepted Latitude ATC pilots. Tell us about the position you want to train for.",
+  "requiresPilot": true,
+  "questions": [
+    {
+      "name": "robloxUsername",
+      "label": "Roblox username",
+      "type": "text",
+      "required": true,
+      "autocomplete": "username",
+      "hint": "The name you fly under in Roblox.",
+      "maxLength": 32
+    },
+    {
+      "name": "discordUsername",
+      "label": "Discord username",
+      "type": "text",
+      "required": true,
+      "autocomplete": "off",
+      "hint": "So we can find you when we reply.",
+      "maxLength": 64
+    },
+    {
+      "name": "email",
+      "label": "Email address",
+      "type": "email",
+      "required": true,
+      "autocomplete": "email",
+      "hint": "Only used to contact you about this application.",
+      "maxLength": 254
+    },
+    {
+      "name": "age",
+      "label": "Age",
+      "type": "number",
+      "required": true,
+      "min": 13,
+      "max": 120
+    },
+    {
+      "name": "pilotReference",
+      "label": "Pilot callsign or ID",
+      "type": "text",
+      "required": true,
+      "autocomplete": "off",
+      "hint": "The identifier we issued you when your pilot application was approved. Staff use this to confirm your status.",
+      "maxLength": 64
+    },
+    {
+      "name": "position",
+      "label": "Position you want to train for",
+      "type": "select",
+      "required": true,
+      "options": [
+        { "value": "ground", "label": "Ground controller" },
+        { "value": "local", "label": "Local / tower" },
+        { "value": "approach", "label": "Approach" },
+        { "value": "supervisor", "label": "Supervisor" },
+        { "value": "unsure", "label": "Not sure yet" }
+      ]
+    },
+    {
+      "name": "experience",
+      "label": "Previous controlling experience",
+      "type": "textarea",
+      "required": true,
+      "rows": 4,
+      "maxLength": 1000,
+      "placeholder": "Other Roblox ATC servers, VATSIM, or none at all."
+    },
+    {
+      "name": "availability",
+      "label": "Typical availability",
+      "type": "select",
+      "required": true,
+      "options": [
+        { "value": "weekday", "label": "Weekdays" },
+        { "value": "weekend", "label": "Weekends" },
+        { "value": "evenings", "label": "Evenings" },
+        { "value": "flexible", "label": "Flexible" }
+      ]
+    },
+    {
+      "name": "motivation",
+      "label": "Why do you want to control?",
+      "type": "textarea",
+      "required": true,
+      "rows": 5,
+      "maxLength": 2000
+    },
+    {
+      "name": "agreedRules",
+      "label": "I have read the rules and agree to follow them.",
+      "type": "checkbox",
+      "required": true
+    }
+  ]
+}

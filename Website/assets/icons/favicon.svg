@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Latitude ATC">
+  <title>Latitude ATC</title>
+  <rect width="64" height="64" rx="14" fill="#0d2b4e"/>
+  <g fill="none" stroke="#2a7de1" stroke-width="1.6" stroke-opacity=".65" stroke-linecap="round">
+    <path d="M32 32m-13 0a13 13 0 1 1 26 0" transform="rotate(38 32 32)"/>
+    <path d="M32 32m-21 0a21 21 0 1 1 42 0" transform="rotate(38 32 32)" stroke-opacity=".35"/>
+  </g>
+  <g fill="#ffffff">
+    <rect x="29.4" y="9" width="5.2" height="46" rx="2.6"/>
+    <path d="M30.2 24.5 12 37.6v4.2l18.2-6.1z"/>
+    <path d="M33.8 24.5 52 37.6v4.2l-18.2-6.1z"/>
+    <path d="M30.4 44.6 20.6 50.4v3.1l9.8-3.2z"/>
+    <path d="M33.6 44.6l9.8 5.8v3.1l-9.8-3.2z"/>
+  </g>
+</svg>
