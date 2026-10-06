@@ -10,12 +10,16 @@ const { createApplicationsRouter } = require("./routes/applications");
 const { createQueueRouter } = require("./routes/queue");
 const { createRadarRouter } = require("./routes/radar");
 const { loadSchema } = require("./lib/schemas");
+const { BotSupervisor } = require("./bot");
 
 /**
  * Builds the Express app without starting a listener, so tests can drive it with
  * supertest style calls on an ephemeral port.
+ *
+ * `bot` is optional: the HTTP side of the service has to work even when the
+ * Discord bot is disabled, unavailable, or simply not under test.
  */
-function createApp({ config, store }) {
+function createApp({ config, store, bot }) {
     const app = express();
 
     app.disable("x-powered-by");
@@ -55,10 +59,19 @@ function createApp({ config, store }) {
         return session(req, res, next);
     });
 
+    /**
+     * Render's health check. The bot is reported but never gates this response:
+     * a stopped Discord bot should not make Render restart the whole service,
+     * because that would take the website API down alongside it.
+     */
     app.get("/health", async (req, res) => {
         try {
             await store.query("SELECT 1");
-            res.json({ ok: true, uptime: Math.round(process.uptime()) });
+            res.json({
+                ok: true,
+                uptime: Math.round(process.uptime()),
+                bot: bot ? bot.status() : { state: "not_started" }
+            });
         } catch (error) {
             res.status(503).json({ ok: false, error: "database_unreachable" });
         }
@@ -148,7 +161,26 @@ async function start(env = process.env) {
         throw new Error(`Could not prepare the database: ${error.message}`);
     }
 
-    const app = createApp({ config, store });
+    /**
+     * The bot runs as a child of this process. It starts only after the schema
+     * is ready, because the bot's own boot creates its tables, and it is stopped
+     * before the database closes on shutdown so it does not write to a
+     * connection that is going away.
+     */
+    const bot = new BotSupervisor({
+        enabled: config.bot.enabled && Boolean(config.bot.token),
+        pythonBin: config.bot.pythonBin || undefined,
+        dir: config.bot.directory || undefined,
+        env
+    });
+
+    if (config.bot.enabled && !config.bot.token) {
+        console.log("[bot] DISCORD_TOKEN is not set - starting the API without the bot");
+    }
+
+    bot.start();
+
+    const app = createApp({ config, store, bot });
     const server = app.listen(config.port, () => {
         console.log(`[latc] listening on :${config.port} (${config.nodeEnv})`);
     });
@@ -156,6 +188,7 @@ async function start(env = process.env) {
     const shutdown = async (signal) => {
         console.log(`[latc] ${signal} received, shutting down`);
         server.close();
+        await bot.stop().catch(() => {});
         await store.close().catch(() => {});
         process.exit(0);
     };
@@ -163,7 +196,7 @@ async function start(env = process.env) {
     process.on("SIGTERM", () => shutdown("SIGTERM"));
     process.on("SIGINT", () => shutdown("SIGINT"));
 
-    return { app, server, store, config };
+    return { app, server, store, config, bot };
 }
 
 module.exports = { createApp, start };

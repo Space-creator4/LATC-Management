@@ -4,19 +4,31 @@
 # part of this blueprint. This service only backs the interactive parts: sign in,
 # applications, the join queue, and the radar.
 #
+# It also supervises the Discord bot, which lives in bot/ and runs as a child
+# process of this same service. One service means one free instance: the API and
+# the bot sleep and wake together, and a bot crash never costs the API.
+#
 # Secrets are deliberately absent. Set these in the Render dashboard under
 # Environment, never in this file — it is committed.
 #
-#   DATABASE_URL              Neon connection string (reuse the bot's)
+#   DATABASE_URL              Neon connection string (the bot shares it)
 #   DISCORD_CLIENT_ID         from the Discord developer portal
 #   DISCORD_CLIENT_SECRET     from the Discord developer portal
-#   DISCORD_BOT_TOKEN         the bot token, used only to read guild roles
-#   DISCORD_GUILD_ID          the Latitude ATC server id
+#   DISCORD_BOT_TOKEN         the bot token; read by role checks AND passed to
+#                             the bot child process (which calls it
+#                             DISCORD_TOKEN — same value, two names)
+#   DISCORD_GUILD_ID          the Latitude ATC server id (the bot calls this
+#                             GUILD_ID)
 #   PILOT_ROLE_ID             snowflake for the Pilot role
 #   ATC_ROLE_ID               snowflake for the controller role
 #   SESSION_SECRET            long random string; rotates every session out
 #   PRIVATE_INVITE_URL        the private invite; never leaves the service
 #   DISCORD_REDIRECT_URI      <service>/auth/discord/callback
+#   STAFF_ROLE_ID             optional; staff badge
+#
+# Optional bot tuning, all with working defaults:
+#   BOT_ENABLED=false         run the API without starting the bot
+#   PYTHON_BIN=<path>         override interpreter discovery
 #
 # In the Discord portal, add that exact redirect URI to the OAuth2 settings. It
 # points at this service, not at latcm.co.uk, because Discord calls it directly.
@@ -27,8 +39,26 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm ci
+    # Installs the API packages and the bot's Python packages.
+    #
+    # The interpreter search prefers bot/.venv when this command creates one,
+    # because that is where discord.py and asyncpg end up. If the image cannot
+    # make a venv it falls back to a system pip, and the supervisor then runs the
+    # bot with the plain python3 already on PATH.
+    buildCommand: |
+      npm ci &&
+      {
+        if python3 -m venv bot/.venv 2>/dev/null; then
+          bot/.venv/bin/pip install -r bot/requirements.txt;
+        else
+          pip3 install --break-system-packages -r bot/requirements.txt ||
+          pip3 install --break-system-packages --user -r bot/requirements.txt ||
+          pip3 install --user -r bot/requirements.txt;
+        fi
+      }
     startCommand: npm start
+    # Reports the API, and includes a `bot` field. A stopped bot does not fail
+    # this check on purpose: it must not take the website API down with it.
     healthCheckPath: /health
     autoDeploy: false
     envVars:
@@ -45,4 +75,8 @@ services:
       - key: APPLICATIONS_ATC_REQUIRES_PILOT
         value: "true"
       - key: QUEUE_AUTO_APPROVE
+        value: "true"
+      # The bot starts by default. Set to "false" to keep the API up while the
+      # bot is deliberately offline.
+      - key: BOT_ENABLED
         value: "true"

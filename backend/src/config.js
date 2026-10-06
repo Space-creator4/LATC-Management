@@ -209,6 +209,27 @@ function loadConfig(env = process.env) {
             secure: bool(env, "SESSION_SECURE", isProduction)
         },
 
+        /**
+         * The Discord bot, run as a child process by this same service.
+         *
+         * Two names exist for the token because the bot predates the API and
+         * called it DISCORD_TOKEN while the API calls it DISCORD_BOT_TOKEN.
+         * Both are accepted and the supervisor maps them, so a single value in
+         * the Render dashboard drives both halves.
+         */
+        bot: {
+            enabled: bool(env, "BOT_ENABLED", true),
+            token: optional(env, "DISCORD_TOKEN") || optional(env, "DISCORD_BOT_TOKEN"),
+            /**
+             * Interpreter used to launch bot/main.py. Left empty the supervisor
+             * probes for python3, then python, then py, which is what makes one
+             * render.yaml work on Linux and still start on a Windows laptop.
+             */
+            pythonBin: optional(env, "PYTHON_BIN"),
+            /** Passed to the child so the bot's own .env lookup is unambiguous. */
+            directory: optional(env, "BOT_DIRECTORY")
+        },
+
         applications: {
             /**
              * Staff intake is closed. Kept as a switch so it can be reopened
