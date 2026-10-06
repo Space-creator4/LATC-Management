@@ -3,14 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "description": "Backend for the Latitude ATC website: Discord OAuth, application intake, join queue, and ATC-only radar data.",
-  "main": "src/server.js",
+  "main": "src/index.js",
   "type": "commonjs",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
