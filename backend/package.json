@@ -6,7 +6,7 @@
   "main": "src/index.js",
   "type": "commonjs",
   "engines": {
-    "node": ">=20"
+    "node": ">=20 <25"
   },
   "scripts": {
     "start": "node src/index.js",

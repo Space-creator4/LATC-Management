@@ -39,12 +39,18 @@ services:
     runtime: node
     plan: free
     region: oregon
+    # The repo is a monorepo: the static site lives in Website/ and this API in
+    # backend/, with no package.json at the top level. Without this, Render runs
+    # buildCommand from the repo root and npm ci has nothing to install.
+    # It also keeps Website/ edits from triggering an API deploy.
+    rootDir: backend
     # Installs the API packages and the bot's Python packages.
     #
     # The interpreter search prefers bot/.venv when this command creates one,
-    # because that is where discord.py and asyncpg end up. If the image cannot
-    # make a venv it falls back to a system pip, and the supervisor then runs the
-    # bot with the plain python3 already on PATH.
+    # because that is where discord.py and asyncpg end up. Render's images ship
+    # python3-pip but not python3-venv, so if the venv cannot be made the
+    # fallback installs with --break-system-packages, which Debian bookworm
+    # requires because its system Python is marked externally managed.
     buildCommand: |
       npm ci &&
       {
@@ -52,15 +58,15 @@ services:
           bot/.venv/bin/pip install -r bot/requirements.txt;
         else
           pip3 install --break-system-packages -r bot/requirements.txt ||
-          pip3 install --break-system-packages --user -r bot/requirements.txt ||
-          pip3 install --user -r bot/requirements.txt;
+          pip3 install --break-system-packages --user -r bot/requirements.txt;
         fi
       }
     startCommand: npm start
     # Reports the API, and includes a `bot` field. A stopped bot does not fail
     # this check on purpose: it must not take the website API down with it.
     healthCheckPath: /health
-    autoDeploy: false
+    # autoDeployTrigger replaces the deprecated autoDeploy field.
+    autoDeployTrigger: "off"
     envVars:
       - key: NODE_VERSION
         value: "22"
