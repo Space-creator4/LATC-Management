@@ -122,6 +122,11 @@
         }
 
         el.setAttribute("href", value);
+
+        if (el.hasAttribute("data-external")) {
+            el.setAttribute("target", "_blank");
+            el.setAttribute("rel", "noopener noreferrer");
+        }
     });
 
     if (pending.length) {

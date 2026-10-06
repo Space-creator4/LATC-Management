@@ -34,7 +34,7 @@ window.LATC_CONFIG = Object.freeze({
      * token, the database URL, and the private server invite all live in the
      * service's environment, never here.
      */
-    apiBaseUrl: "https://REPLACE-WITH-RENDER-SERVICE-URL.onrender.com",
+    apiBaseUrl: "https://latc-management.onrender.com",
 
     /* ---- Community links ------------------------------------------------ */
 
@@ -42,7 +42,7 @@ window.LATC_CONFIG = Object.freeze({
     discordInvite: "https://discord.gg/pDWhZnJe8x",
 
     /** Latitude ATC experience on Roblox (game page). */
-    robloxGameUrl: "https://www.roblox.com/games/REPLACE-WITH-LATC-GAME-ID",
+    robloxGameUrl: "https://www.roblox.com/games/111473085086152/Latitude-Testing",
 
     /** Roblox group / official profile, if one exists. */
     robloxGroupUrl: "https://www.roblox.com/communities/665836232/AervionX#!/about",
