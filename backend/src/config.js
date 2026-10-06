@@ -185,8 +185,11 @@ function loadConfig(env = process.env) {
             atcRoleId: snowflake(env, "ATC_ROLE_ID", null),
             staffRoleId: snowflake(env, "STAFF_ROLE_ID", null),
             /**
-             * Redirect URI registered in the Discord developer portal. Must
-             * match exactly, including trailing slash.
+             * Redirect URI to send Discord when authorising. Leave unset in
+             * production and it is derived from this API's own public origin
+             * (host based), which keeps the callback on the server instead of
+             * the static site. When set it must match the value registered in
+             * the Discord developer portal exactly, including trailing slash.
              */
             redirectUri: optional(
                 env,

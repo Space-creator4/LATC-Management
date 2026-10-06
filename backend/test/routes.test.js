@@ -376,6 +376,46 @@ test("an unsigned token is refused even with a valid session id", async () => {
     });
 });
 
+test("an unset callback host points OAuth at the API's own origin", async () => {
+    clearCache();
+    const config = loadConfig({ ...baseEnv });
+    config.discord.redirectUri = "";
+    const store = new FakeStore({});
+    const app = createApp({ config, store });
+    const server = app.listen(0);
+    await new Promise((resolve) => server.once("listening", resolve));
+    const { port } = server.address();
+    try {
+        const location = await new Promise((resolve, reject) => {
+            const req = require("node:http").request(
+                {
+                    host: "127.0.0.1",
+                    port,
+                    path: "/auth/discord",
+                    headers: { Host: "api.example.com", "X-Forwarded-Proto": "https" }
+                },
+                (res) => {
+                    res.resume();
+                    resolve(res.headers.location);
+                }
+            );
+            req.on("error", reject);
+            req.end();
+        });
+
+        const loc = new URL(location);
+        assert.equal(loc.protocol + "//" + loc.host, "https://discord.com");
+        assert.equal(loc.pathname, "/api/v10/oauth2/authorize");
+        assert.equal(loc.searchParams.get("client_id"), "client");
+        assert.equal(loc.searchParams.get("redirect_uri"), "https://api.example.com/auth/discord/callback");
+        assert.equal(loc.searchParams.get("response_type"), "code");
+        assert.ok(loc.searchParams.get("state"));
+        assert.ok(loc.searchParams.get("scope"));
+    } finally {
+        server.close();
+    }
+});
+
 test("an unknown role is refused", async () => {
     await withApp({}, async ({ call }) => {
         const res = await call("/api/applications", {

@@ -27,11 +27,12 @@ function createAuthRouter({ config }) {
     const router = express.Router();
 
     router.get("/discord", (req, res) => {
-        if (!config.discord.redirectUri) {
-            return res
-                .status(503)
-                .send("DISCORD_REDIRECT_URI is not configured on the server yet.");
-        }
+        // Derived from this server's own public origin so the callback can
+        // never be pointed at the static site by mistake. An explicit
+        // DISCORD_REDIRECT_URI overrides it, and must then exactly match a
+        // redirect registered in the Discord developer portal.
+        const redirectUri =
+            config.discord.redirectUri || `${req.protocol}://${req.get("host")}/auth/discord/callback`;
 
         const state = require("node:crypto").randomBytes(24).toString("base64url");
 
@@ -47,7 +48,7 @@ function createAuthRouter({ config }) {
 
         return res.redirect(authorizeUrl({
             clientId: config.discord.clientId,
-            redirectUri: config.discord.redirectUri,
+            redirectUri,
             state
         }));
     });
