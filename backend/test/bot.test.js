@@ -119,6 +119,24 @@ test("a child that stays up is reported as running", async () => {
     assert.equal(bot.child, null);
 });
 
+test("a child that only writes to stderr is reported as running", async () => {
+    const bot = new BotSupervisor({
+        enabled: true,
+        log: quiet,
+        pythonBin: process.execPath,
+        entry: script("console.error('gateway ready'); " + NEVER)
+    });
+
+    bot.start();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    assert.equal(bot.state, "running");
+    assert.equal(bot.isRunning(), true);
+
+    await bot.stop();
+    assert.equal(bot.state, "stopped");
+});
+
 test("a crashing child is restarted rather than left dead", async () => {
     const bot = new BotSupervisor({
         enabled: true,

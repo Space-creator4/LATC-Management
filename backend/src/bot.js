@@ -235,14 +235,19 @@ class BotSupervisor {
             this.scheduleRestart();
         });
 
-        /* Once the gateway is up the child is doing its job. Discord can still
-           drop it later, but this is the earliest point we can call it live. */
-        child.stdout.once("data", () => {
+        /* Once the child produces output it is doing its job. Python logs go to
+           stderr (logging.basicConfig defaults), so the ready check must listen
+           on both streams or a healthy bot is stuck on "starting" forever.
+           Discord can still drop it later, but this is the earliest point we
+           can call it live. */
+        const markRunning = () => {
             if (this.state === "starting") {
                 this.state = "running";
                 this.log("[bot] producing output - running");
             }
-        });
+        };
+        child.stdout.once("data", markRunning);
+        child.stderr.once("data", markRunning);
     }
 
     scheduleRestart() {
