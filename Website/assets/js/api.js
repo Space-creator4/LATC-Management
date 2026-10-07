@@ -96,6 +96,66 @@
     var session = null;
     var listeners = [];
 
+    /*
+     * Session cache. The cookie is httpOnly so a page cannot read the actual
+     * session, but the /auth/me payload (name, avatar, roles) is safe to keep
+     * around: it is exactly what the page would render anyway, and every page
+     * revalidates it against the server before trusting it.
+     *
+     *   sessionStorage   instant paint on this tab (no signed-out flash)
+     *   localStorage     syncs the state across every open tab via "storage"
+     */
+    var SESSION_CACHE = "latc-session";
+
+    function cacheRead() {
+        try {
+            var raw = sessionStorage.getItem(SESSION_CACHE);
+            return raw ? JSON.parse(raw) : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function cacheWrite(cached) {
+        try {
+            var raw = cached ? JSON.stringify(cached) : "";
+            if (raw) {
+                sessionStorage.setItem(SESSION_CACHE, raw);
+                localStorage.setItem(SESSION_CACHE, raw);
+            } else {
+                sessionStorage.removeItem(SESSION_CACHE);
+                localStorage.removeItem(SESSION_CACHE);
+            }
+        } catch (error) {
+            /* Storage can be blocked entirely; the session still works, it just
+               falls back to a per-page check. */
+        }
+    }
+
+    /* A returning visitor is painted signed in straight from cache, then the
+       server is asked for the truth. */
+    var cached = cacheRead();
+
+    if (cached) {
+        session = cached;
+        notify();
+    }
+
+    /* A sign in or out anywhere keeps every open tab honest: another tab's
+       change lands here as a "storage" event, and a back/forward navigation
+       rechecks too because those pages are restored, not reloaded. */
+    window.addEventListener("storage", function (event) {
+        if (event.key === SESSION_CACHE) {
+            loadSession();
+        }
+    });
+
+    window.addEventListener("pageshow", function (event) {
+        if (event.persisted) {
+            loadSession();
+        }
+    });
+
     function onSessionChange(callback) {
         listeners.push(callback);
         callback(session);
@@ -123,6 +183,7 @@
     function loadSession() {
         if (!hasApi()) {
             session = null;
+            cacheWrite(null);
             notify();
             return Promise.resolve(null);
         }
@@ -130,6 +191,7 @@
         return apiRequest("/auth/me")
             .then(function (data) {
                 session = data;
+                cacheWrite(data);
                 notify();
                 return data;
             })
@@ -138,6 +200,7 @@
                    logging. Anything else lands here too, and being treated as
                    signed out is the safe reading. */
                 session = null;
+                cacheWrite(null);
                 notify();
                 return null;
             });
@@ -151,6 +214,7 @@
             })
             .then(function () {
                 session = null;
+                cacheWrite(null);
                 notify();
                 window.location.reload();
             });

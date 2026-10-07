@@ -24,6 +24,77 @@
         return;
     }
 
+    /* ------------------------------------------------------------------
+       Toast
+       A small status strip used for sign in / sign out feedback that would
+       otherwise be invisible on pages without an obvious notice area.
+       ------------------------------------------------------------------ */
+    function toast(message) {
+        var existing = document.querySelector(".latc-toast");
+
+        if (existing) {
+            existing.remove();
+        }
+
+        var el = document.createElement("div");
+        el.className = "latc-toast";
+        el.setAttribute("role", "status");
+        el.textContent = message;
+        document.body.appendChild(el);
+
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                el.classList.add("is-visible");
+            });
+        });
+
+        window.setTimeout(function () {
+            el.classList.remove("is-visible");
+            window.setTimeout(function () {
+                el.remove();
+            }, 300);
+        }, 4000);
+    }
+
+    /* Welcome back from the OAuth round trip. The callback lands here with
+       ?signed_in=1 once every page on the site now agrees who you are. */
+    var params = new URLSearchParams(window.location.search);
+    var welcomed = params.get("signed_in") === "1";
+
+    if (welcomed) {
+        api.onSessionChange(function (session) {
+            if (welcomed && session && session.user) {
+                welcomed = false;
+                toast("You're signed in as " + session.user.username + ".");
+            }
+        });
+    }
+
+    /* Tell the next page load (created by signOut) that it should confirm the
+       logout out loud, and clean the marker off the address bar. */
+    var signedOutFlag = "latc-signed-out";
+    var hadSignedOut = false;
+
+    try {
+        hadSignedOut = sessionStorage.getItem(signedOutFlag) === "1";
+        sessionStorage.removeItem(signedOutFlag);
+    } catch (error) {
+        /* Storage blocked; the sign out itself still works. */
+    }
+
+    if (hadSignedOut) {
+        api.onSessionChange(function (session) {
+            if (hadSignedOut && !session) {
+                hadSignedOut = false;
+                toast("You've been signed out.");
+            }
+        });
+    }
+
+    if (welcomed) {
+        window.history.replaceState({}, "", window.location.pathname + window.location.hash);
+    }
+
     function paint(session) {
         var signedIn = Boolean(session && session.user);
 
@@ -81,6 +152,13 @@
     document.querySelectorAll("[data-auth-signout]").forEach(function (button) {
         button.addEventListener("click", function () {
             button.disabled = true;
+
+            try {
+                sessionStorage.setItem(signedOutFlag, "1");
+            } catch (error) {
+                /* Storage blocked; the sign out itself still works. */
+            }
+
             api.signOut();
         });
     });

@@ -75,7 +75,10 @@
           <span class="visually-hidden" data-theme-label>Light theme</span>
         </button>
         <a class="btn btn--secondary btn--sm" href="../../account/index.html" data-auth="signed-out">Sign in</a>
-        <a class="btn btn--primary btn--sm" href="../../account/index.html" data-auth="signed-in"><span data-auth-username>Account</span></a>
+        <a class="btn btn--primary btn--sm nav__user" href="../../account/index.html" data-auth="signed-in">
+          <img class="nav__user-avatar" src="" alt="" data-auth-avatar hidden>
+          <span data-auth-username>Account</span>
+        </a>
         <a class="btn btn--discord btn--sm" href="#discord" data-config="discordInvite" data-external>Join Discord</a>
       </div>
     </nav>

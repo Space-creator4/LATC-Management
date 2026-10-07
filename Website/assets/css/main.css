@@ -3019,3 +3019,61 @@ select.field__control {
         width: 100%;
     }
 }
+
+/* ---- Nav account chip ---- */
+.nav__user {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+.nav__user-avatar {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+/* ---- Session toast ---- */
+.latc-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 1.25rem;
+    z-index: 90;
+    max-width: min(92vw, 26rem);
+    padding: .7rem 1.1rem;
+    font-size: .9rem;
+    font-weight: 500;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-hairline), var(--shadow-md);
+    opacity: 0;
+    transform: translate(-50%, .75rem);
+    pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease;
+}
+
+.latc-toast.is-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.latc-toast a {
+    color: var(--accent);
+}
+
+@media (max-width: 600px) {
+    .latc-toast {
+        left: 1rem;
+        right: 1rem;
+        transform: translateY(.75rem);
+        text-align: center;
+    }
+
+    .latc-toast.is-visible {
+        transform: translateY(0);
+    }
+}
