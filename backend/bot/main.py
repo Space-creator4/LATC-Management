@@ -289,8 +289,7 @@ CREATE TABLE IF NOT EXISTS atis_entries (
     guild_id {INT} NOT NULL,
     channel_id {INT} NOT NULL,
     message_id {INT} NOT NULL,
-    arrivals TEXT NOT NULL DEFAULT '',
-    departures TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
     updated_by {INT},
     updated_at {INT} NOT NULL,
     PRIMARY KEY (guild_id, channel_id)
@@ -769,8 +768,8 @@ class Database:
         self, guild_id: int, channel_id: int
     ) -> sqlite3.Row | None:
         return await self.fetch_one(
-            "SELECT guild_id, channel_id, message_id, arrivals, departures,"
-            " updated_by, updated_at FROM atis_entries WHERE guild_id = ? AND channel_id = ?",
+            "SELECT guild_id, channel_id, message_id, content, updated_by, updated_at"
+            " FROM atis_entries WHERE guild_id = ? AND channel_id = ?",
             (guild_id, channel_id),
         )
 
@@ -779,27 +778,24 @@ class Database:
         guild_id: int,
         channel_id: int,
         message_id: int,
-        arrivals: str,
-        departures: str,
+        content: str,
         updated_by: int | None,
     ) -> None:
         await self.execute(
             "INSERT INTO atis_entries"
-            " (guild_id, channel_id, message_id, arrivals, departures, updated_by, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)"
+            " (guild_id, channel_id, message_id, content, updated_by, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?)"
             " ON CONFLICT (guild_id, channel_id) DO UPDATE SET"
-            " message_id = ?, arrivals = ?, departures = ?, updated_by = ?, updated_at = ?",
+            " message_id = ?, content = ?, updated_by = ?, updated_at = ?",
             (
                 guild_id,
                 channel_id,
                 message_id,
-                arrivals,
-                departures,
+                content,
                 updated_by,
                 now_ts(),
                 message_id,
-                arrivals,
-                departures,
+                content,
                 updated_by,
                 now_ts(),
             ),
@@ -807,7 +803,7 @@ class Database:
 
     async def list_atis_entries(self, guild_id: int) -> list[sqlite3.Row]:
         return await self.fetch_all(
-            "SELECT channel_id, message_id, arrivals, departures, updated_by, updated_at"
+            "SELECT channel_id, message_id, content, updated_by, updated_at"
             " FROM atis_entries WHERE guild_id = ?",
             (guild_id,),
         )
@@ -1484,6 +1480,46 @@ class ApplicationReviewView(discord.ui.View):
         self.add_item(ApplicationReviewButton(app_id, "rejected"))
 
 
+class UnclaimAtcButton(discord.ui.Button):
+    def __init__(self, channel_id: int) -> None:
+        super().__init__(
+            style=discord.ButtonStyle.secondary,
+            label="Unclaim",
+            custom_id=f"latc:atc:unclaim:{channel_id}",
+        )
+        self.channel_id = channel_id
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        bot: LATCManagement = interaction.client  # type: ignore[assignment]
+        guild = interaction.guild
+        member = interaction.user
+        if guild is None or not isinstance(member, discord.Member):
+            await interaction.response.send_message(
+                "Unclaim only works from inside the server.", ephemeral=True
+            )
+            return
+        claimed = await bot.db.atc_claim_for(guild.id, self.channel_id)
+        if claimed is None:
+            await interaction.response.send_message(
+                "This position is already open.", ephemeral=True
+            )
+            return
+        if claimed != member.id:
+            await interaction.response.send_message(
+                f"This position is controlled by <@{claimed}>. You cannot unclaim it.",
+                ephemeral=True,
+            )
+            return
+        await bot.db.release_atc_claim(guild.id, self.channel_id)
+        await interaction.response.send_message(
+            f"You have released <#{self.channel_id}>.", ephemeral=True
+        )
+        try:
+            await bot.refresh_atc_panel(guild)
+        except Exception:
+            log.exception("Failed to update the ATC panel after unclaim in %s", guild.id)
+
+
 class ClaimAtcButton(discord.ui.Button):
     def __init__(self, channel_id: int) -> None:
         super().__init__(
@@ -1534,6 +1570,7 @@ class AtcClaimView(discord.ui.View):
         super().__init__(timeout=None)
         for channel_id in channel_ids:
             self.add_item(ClaimAtcButton(channel_id))
+            self.add_item(UnclaimAtcButton(channel_id))
 
 
 class AtisUpdateButton(discord.ui.Button):
@@ -1556,36 +1593,32 @@ class AtisUpdateButton(discord.ui.Button):
         vc = bot.get_channel(self.channel_id)
         vc_name = vc.name if isinstance(vc, discord.VoiceChannel) else "Airport"
         entry = await bot.db.get_atis_entry(guild.id, self.channel_id)
-        arrivals = str(entry["arrivals"]) if entry is not None else ""
-        departures = str(entry["departures"]) if entry is not None else ""
+        atis_content = str(entry["content"]) if entry is not None else ""
         await interaction.response.send_modal(
-            AtisUpdateModal(self.channel_id, vc_name, arrivals, departures)
+            AtisUpdateModal(self.channel_id, vc_name, atis_content)
         )
 
 
 class AtisUpdateModal(discord.ui.Modal):
     def __init__(
-        self, channel_id: int, vc_name: str, arrivals: str = "", departures: str = ""
+        self, channel_id: int, vc_name: str, content: str = ""
     ) -> None:
-        super().__init__(title="Update ATIS", timeout=300)
+        super().__init__(title=f"{vc_name} ATIS", timeout=300)
         self.channel_id = channel_id
         self.vc_name = vc_name
-        self.arrivals_input = discord.ui.TextInput(
-            label="Arrival information",
+        self.content_input = discord.ui.TextInput(
+            label="ATIS broadcast",
             style=discord.TextStyle.paragraph,
             required=False,
-            max_length=1024,
-            default=arrivals,
+            max_length=2000,
+            default=content,
+            placeholder=(
+                "ISAU ATIS INFO J TIME 1938Z\nDEP RWY 8 ARR RWY 8\n304/14 9999 SCT019 11/09 Q1016\n"
+                "TRANSITION LEVEL 030\nACKNOWLEDGE RECEIPT OF INFORMATION J\n"
+                "AND ADVISE AFCT TYPE ON FIRST CONTACT WITH SAUTHEMPTONA\nEND OF INFORMATION J"
+            ),
         )
-        self.departures_input = discord.ui.TextInput(
-            label="Departure information",
-            style=discord.TextStyle.paragraph,
-            required=False,
-            max_length=1024,
-            default=departures,
-        )
-        self.add_item(self.arrivals_input)
-        self.add_item(self.departures_input)
+        self.add_item(self.content_input)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         bot: LATCManagement = interaction.client  # type: ignore[assignment]
@@ -1595,8 +1628,7 @@ class AtisUpdateModal(discord.ui.Modal):
                 "ATIS only works from inside the server.", ephemeral=True
             )
             return
-        arrivals = (self.arrivals_input.value or "").strip()
-        departures = (self.departures_input.value or "").strip()
+        content = (self.content_input.value or "").strip()
         entry = await bot.db.get_atis_entry(guild.id, self.channel_id)
         message_id = (
             int(entry["message_id"]) if entry is not None else interaction.message.id
@@ -1605,8 +1637,7 @@ class AtisUpdateModal(discord.ui.Modal):
             guild.id,
             self.channel_id,
             message_id,
-            arrivals,
-            departures,
+            content,
             interaction.user.id,
         )
         await interaction.response.send_message(
@@ -1655,22 +1686,13 @@ def build_atc_panel_embed(
 
 def build_atis_embed(vc_name: str, entry: sqlite3.Row | None) -> discord.Embed:
     embed = discord.Embed(title=f"{vc_name} — ATIS", color=ACCENT_COLOR)
-    arrivals = str(entry["arrivals"]).strip() if entry is not None else ""
-    departures = str(entry["departures"]).strip() if entry is not None else ""
-    embed.add_field(
-        name="Arrivals",
-        value=truncate(arrivals, 1000)
-        if arrivals
-        else "No arrival information set. Press **Update ATIS** below.",
-        inline=False,
-    )
-    embed.add_field(
-        name="Departures",
-        value=truncate(departures, 1000)
-        if departures
-        else "No departure information set. Press **Update ATIS** below.",
-        inline=False,
-    )
+    content = str(entry["content"]).strip() if entry is not None else ""
+    if content:
+        embed.description = f"```text\n{content}\n```"
+    else:
+        embed.description = (
+            "No ATIS set. Press **Update ATIS** below to add the broadcast."
+        )
     if entry is not None and entry["updated_at"]:
         embed.set_footer(text=f"Last updated <t:{int(entry['updated_at'])}:R>")
     return embed
@@ -2396,7 +2418,7 @@ class LATCManagement(commands.Bot):
             if message is None:
                 message = await channel.send(embed=embed, view=view)
                 await self.db.set_atis_entry(
-                    guild.id, position.id, message.id, "", "", None
+                    guild.id, position.id, message.id, "", None
                 )
             else:
                 await message.edit(embed=embed, view=view)
