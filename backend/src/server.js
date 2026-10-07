@@ -19,7 +19,7 @@ const { BotSupervisor } = require("./bot");
  * `bot` is optional: the HTTP side of the service has to work even when the
  * Discord bot is disabled, unavailable, or simply not under test.
  */
-function createApp({ config, store, bot }) {
+function createApp({ config, store, bot, discord }) {
     const app = express();
 
     app.disable("x-powered-by");
@@ -39,7 +39,7 @@ function createApp({ config, store, bot }) {
         if (origin && config.allowedOrigins.includes(origin)) {
             res.setHeader("Access-Control-Allow-Origin", origin);
             res.setHeader("Access-Control-Allow-Credentials", "true");
-            res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+            res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
             res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
             res.setHeader("Vary", "Origin");
         }
@@ -107,7 +107,7 @@ function createApp({ config, store, bot }) {
         });
     });
 
-    app.use("/auth", createAuthRouter({ config }));
+    app.use("/auth", createAuthRouter({ config, discord }));
     app.use("/api/applications", createApplicationsRouter({ config }));
     app.use("/api/queue", createQueueRouter({ config }));
     app.use("/api/radar", createRadarRouter({ config }));

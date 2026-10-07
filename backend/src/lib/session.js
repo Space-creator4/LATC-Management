@@ -26,6 +26,21 @@ function createToken(payload, secret) {
  * Returns the payload when the signature matches and nothing has expired,
  * otherwise null. Comparison is constant time.
  */
+/**
+ * The site and the API live on different sites, so modern browsers never send
+ * the session cookie on a cross-site fetch. The OAuth callback therefore also
+ * hands the site a "Bearer" token, sent here, that names the same session row.
+ * Either credential is accepted; the header wins when both are present.
+ */
+function readBearerToken(header) {
+    if (typeof header !== "string" || !/^Bearer\s+/i.test(header)) {
+        return null;
+    }
+
+    const value = header.slice("Bearer ".length).trim();
+    return value || null;
+}
+
 function readToken(token, secret) {
     if (typeof token !== "string" || !token.includes(".")) {
         return null;
@@ -72,7 +87,9 @@ function sessionMiddleware({ store, config }) {
         req.session = null;
         req.user = null;
 
-        const token = req.cookies ? req.cookies[cookieName] : null;
+        const token =
+            readBearerToken(req.headers.authorization) ||
+            (req.cookies ? req.cookies[cookieName] : null);
         const payload = readToken(token, secret);
 
         if (payload && payload.sid) {
@@ -119,7 +136,9 @@ function sessionMiddleware({ store, config }) {
                 ]
             );
 
-            res.cookie(cookieName, createToken({ sid, exp }, secret), {
+            const value = createToken({ sid, exp }, secret);
+
+            res.cookie(cookieName, value, {
                 httpOnly: true,
                 sameSite: "lax",
                 secure,
@@ -127,7 +146,11 @@ function sessionMiddleware({ store, config }) {
                 path: "/"
             });
 
-            req.session = { id: sid };
+            /* The callback forwards the same signed value to the site as a
+               Bearer token, because the cookie alone stops working once the
+               site fetches cross-site in browsers that block third-party
+               cookies. */
+            req.session = { id: sid, token: value };
             req.user = user;
         };
 

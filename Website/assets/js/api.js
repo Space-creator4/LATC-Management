@@ -5,9 +5,13 @@
    Exposed as window.LATC so the page modules can share one session lookup
    instead of each calling /auth/me.
 
-   The session is an httpOnly cookie, so it cannot be read from JavaScript. Every
-   request therefore sends credentials, and "am I signed in" is always answered by
-   the server rather than assumed.
+   The session is an httpOnly cookie, so it cannot be read from JavaScript. But
+   the site and the API live on different sites, so browsers that block
+   third-party cookies never attach it to a cross-site fetch. The OAuth callback
+   therefore also hands this page the session as "#token=..." in the URL, which
+   is stashed here and sent back as an Authorization: Bearer header. Every
+   request still uses credentials too, so browsers that allow the cookie keep
+   working untouched. "Am I signed in" is always answered by the server.
    ========================================================================== */
 (function () {
     "use strict";
@@ -26,6 +30,49 @@
     var hasApi = function () {
         return apiBase() !== "";
     };
+
+    /* ------------------------------------------------------------------
+       Bearer token
+       The OAuth callback returns to the site as /account/?signed_in=1#token=...
+       The token is stashed in localStorage so every page and every open tab
+       signs itself into the same session, and sent as an Authorization header
+       on each call. It expires with the session, so it is only ever useful as
+       long as the account itself, and signing out throws it away.
+       ------------------------------------------------------------------ */
+    var TOKEN_KEY = "latc-token";
+
+    function getToken() {
+        try {
+            return localStorage.getItem(TOKEN_KEY) || null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function setToken(token) {
+        try {
+            if (token) {
+                localStorage.setItem(TOKEN_KEY, token);
+            } else {
+                localStorage.removeItem(TOKEN_KEY);
+            }
+        } catch (error) {
+            /* Storage blocked; the cookie path still works where the browser
+               allows it. */
+        }
+    }
+
+    /* Pulls #token=... out of the address bar, keeps it, and cleans the
+       fragment away so a refresh or share does not carry it around. Runs on
+       every session load so the order the page scripts run never matters. */
+    function captureTokenFromHash() {
+        var match = (window.location.hash || "").match(/[#&]token=([^&]+)/);
+
+        if (match && match[1]) {
+            setToken(decodeURIComponent(match[1]));
+            window.history.replaceState({}, "", window.location.pathname + window.location.search);
+        }
+    }
 
     /** Error objects carry the status and machine code so callers can branch. */
     function ApiError(message, status, code, errors) {
@@ -49,6 +96,12 @@
 
         if (settings.body) {
             headers["Content-Type"] = "application/json";
+        }
+
+        var token = getToken();
+
+        if (token) {
+            headers["Authorization"] = "Bearer " + token;
         }
 
         return fetch(base + path, {
@@ -117,8 +170,18 @@
     }
 
     function cacheWrite(cached) {
+        var raw = cached ? JSON.stringify(cached) : "";
+
+        /* Skip writes that change nothing. Without this, two tabs both seeing a
+           signed-out answer keep nudging each other's "storage" listener until
+           every tab has re-fetched /auth/me. */
+        if (raw === cacheWrite.last) {
+            return;
+        }
+
+        cacheWrite.last = raw;
+
         try {
-            var raw = cached ? JSON.stringify(cached) : "";
             if (raw) {
                 sessionStorage.setItem(SESSION_CACHE, raw);
                 localStorage.setItem(SESSION_CACHE, raw);
@@ -181,6 +244,8 @@
 
     /** Resolves with the session, or null when signed out. Never rejects. */
     function loadSession() {
+        captureTokenFromHash();
+
         if (!hasApi()) {
             session = null;
             cacheWrite(null);
@@ -198,8 +263,10 @@
             .catch(function () {
                 /* 401 is the normal signed-out answer, not a failure worth
                    logging. Anything else lands here too, and being treated as
-                   signed out is the safe reading. */
+                   signed out is the safe reading. A rejected token is dead too,
+                   so stop carrying it. */
                 session = null;
+                setToken(null);
                 cacheWrite(null);
                 notify();
                 return null;
@@ -214,6 +281,7 @@
             })
             .then(function () {
                 session = null;
+                setToken(null);
                 cacheWrite(null);
                 notify();
                 window.location.reload();

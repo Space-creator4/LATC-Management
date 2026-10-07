@@ -46,7 +46,7 @@ const baseEnv = {
  * session row from the store. Nothing is stubbed between the cookie and the
  * handler, so these tests also prove that a forged or unsigned cookie is refused.
  */
-async function withApp({ env = {}, storeResponses = {}, roles = [], signedIn = true } = {}, run) {
+async function withApp({ env = {}, storeResponses = {}, roles = [], signedIn = true, discord = undefined } = {}, run) {
     // The schema loader caches per role, so a test that points at different
     // fixtures has to drop it or it would read the previous test's files.
     clearCache();
@@ -74,7 +74,7 @@ async function withApp({ env = {}, storeResponses = {}, roles = [], signedIn = t
         ...storeResponses
     });
 
-    const app = createApp({ config, store });
+    const app = createApp({ config, store, discord });
 
     const server = app.listen(0);
     await new Promise((resolve) => server.once("listening", resolve));
@@ -85,16 +85,26 @@ async function withApp({ env = {}, storeResponses = {}, roles = [], signedIn = t
         config.session.secret
     )}`;
 
-    const call = async (path, { method = "GET", body, cookie } = {}) => {
+    const call = async (path, { method = "GET", body, cookie, bearer, redirect = "follow" } = {}) => {
         const headers = {
             "Content-Type": "application/json",
-            Origin: "http://localhost:8000",
-            Cookie: cookie === undefined ? validCookie : cookie
+            Origin: "http://localhost:8000"
         };
+
+        if (typeof cookie === "string") {
+            headers.Cookie = cookie;
+        } else if (bearer === undefined) {
+            headers.Cookie = validCookie;
+        }
+
+        if (bearer !== undefined) {
+            headers["Authorization"] = "Bearer " + bearer;
+        }
 
         const response = await fetch(`http://127.0.0.1:${port}${path}`, {
             method,
             headers,
+            redirect,
             body: body === undefined ? undefined : JSON.stringify(body)
         });
 
@@ -374,6 +384,79 @@ test("an unsigned token is refused even with a valid session id", async () => {
         const res = await call("/auth/me", { cookie: `latc_session=${payload}.deadbeef` });
         assert.equal(res.status, 401);
     });
+});
+
+test("a bearer token signs the member in without any cookie", async () => {
+    const crypto = require("node:crypto");
+    await withApp({ roles: [PILOT_ROLE] }, async ({ call, config }) => {
+        const token = createToken(
+            { sid: "session-1", exp: Date.now() + 60_000 },
+            config.session.secret
+        );
+
+        const res = await call("/auth/me", { bearer: token });
+
+        assert.equal(res.status, 200);
+        assert.equal(res.json.user.id, MEMBER_ID);
+        assert.equal(res.json.permissions.isPilot, true);
+    });
+});
+
+test("the OAuth callback redirects home with the session token in the fragment", async () => {
+    const crypto = require("node:crypto");
+    const discord = {
+        authorizeUrl: () => "https://discord.com/api/v10/oauth2/authorize",
+        exchangeCode: async () => ({ access_token: "token" }),
+        fetchUser: async () => ({ id: MEMBER_ID, username: "aviator", avatar: null }),
+        fetchGuildRoles: async () => [PILOT_ROLE],
+        hasRole: (roles, roleId) => roles.includes(roleId)
+    };
+    const secret = "test-secret-value";
+    const state = "callback-state";
+    const signature = crypto.createHmac("sha256", secret).update(state).digest("base64url");
+
+    await withApp(
+        {
+            signedIn: false,
+            discord,
+            storeResponses: {
+                /* Answer whatever sid the callback just created. */
+                "FROM web_sessions WHERE id = $1": (_sql, params) =>
+                    rows([
+                        {
+                            id: params[0],
+                            discord_user_id: MEMBER_ID,
+                            discord_username: "aviator",
+                            avatar_url: null,
+                            guild_roles: [PILOT_ROLE],
+                            expires_at: "2099-01-01"
+                        }
+                    ])
+            }
+        },
+        async ({ call, store }) => {
+            const res = await call(`/auth/discord/callback?code=exchange-me&state=${state}`, {
+                cookie: `latc_oauth_state=${state}.${signature}`,
+                redirect: "manual"
+            });
+
+            assert.equal(res.status, 302);
+
+            const insert = store.issued("INSERT INTO web_sessions")[0];
+            assert.ok(insert, "the callback should have created a session row");
+
+            const url = new URL(res.headers.get("location"));
+            assert.equal(url.origin + url.pathname, "http://localhost:8000/account/");
+            assert.equal(url.searchParams.get("signed_in"), "1");
+            assert.ok(url.hash.startsWith("#token="), "the session token rides home in the fragment");
+
+            const token = decodeURIComponent(url.hash.slice("#token=".length));
+
+            const me = await call("/auth/me", { bearer: token });
+            assert.equal(me.status, 200);
+            assert.equal(me.json.user.id, MEMBER_ID);
+        }
+    );
 });
 
 test("an unset callback host points OAuth at the API's own origin", async () => {

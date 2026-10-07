@@ -1,13 +1,6 @@
 "use strict";
 
 const express = require("express");
-const {
-    authorizeUrl,
-    exchangeCode,
-    fetchUser,
-    fetchGuildRoles,
-    hasRole
-} = require("../lib/discord");
 const { requireUser } = require("../lib/session");
 
 /**
@@ -23,8 +16,9 @@ const { requireUser } = require("../lib/session");
  * of their own and landing them in someone else's session.
  */
 
-function createAuthRouter({ config }) {
+function createAuthRouter({ config, discord = require("../lib/discord") }) {
     const router = express.Router();
+    const { authorizeUrl, exchangeCode, fetchUser, fetchGuildRoles, hasRole } = discord;
 
     router.get("/discord", (req, res) => {
         // Derived from this server's own public origin so the callback can
@@ -89,7 +83,14 @@ function createAuthRouter({ config }) {
 
             await req.issueSession({ ...user, roles });
 
-            return res.redirect(config.allowedOrigins[0] + "/account/?signed_in=1");
+            /* Carry the session back to the static site as a URL fragment
+               (#token=...). Fragments never leave the browser, so nothing is
+               written to server logs, and the site sends it as a Bearer header
+               on later calls because the session cookie is blocked by modern
+               browsers on cross-site fetches. */
+            const sessionToken = req.session && req.session.token ? "#token=" + req.session.token : "";
+
+            return res.redirect(config.allowedOrigins[0] + "/account/?signed_in=1" + sessionToken);
         } catch (err) {
             return next(err);
         }
