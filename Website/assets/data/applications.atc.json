@@ -42,11 +42,11 @@
     },
     {
       "name": "pilotReference",
-      "label": "Pilot callsign or ID",
+      "label": "Pilot record name",
       "type": "text",
       "required": true,
       "autocomplete": "off",
-      "hint": "The identifier we issued you when your pilot application was approved. Staff use this to confirm your status.",
+      "hint": "The name you applied with as a pilot. Staff confirm your pilot status through your Discord account, and this helps them match your records.",
       "maxLength": 64
     },
     {

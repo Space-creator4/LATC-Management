@@ -2,6 +2,7 @@
 
 const express = require("express");
 const { requireUser } = require("../lib/session");
+const { refreshMemberRoles } = require("../lib/memberRoles");
 
 /**
  * Sign in with Discord.
@@ -108,30 +109,44 @@ function createAuthRouter({ config, discord = require("../lib/discord") }) {
     /**
      * Who am I, and what may I do. The browser uses this to decide whether to
      * show the radar link, but every gated endpoint checks roles again.
+     *
+     * Roles come from a live read of Discord rather than the login snapshot, so
+     * a promotion shows up in the nav and on the account page without a sign
+     * in/out cycle.
      */
-    router.get("/me", requireUser, (req, res) => {
-        const { pilotRoleId, atcRoleId, staffRoleId } = config.discord;
+    router.get("/me", requireUser, async (req, res, next) => {
+        try {
+            const { pilotRoleId, atcRoleId, staffRoleId } = config.discord;
+            const roles = await refreshMemberRoles({
+                store: req.store,
+                config,
+                user: req.user,
+                discord
+            });
 
-        res.json({
-            user: {
-                id: req.user.id,
-                username: req.user.username,
-                avatar: req.user.avatar
-            },
-            permissions: {
-                isPilot: hasRole(req.user.roles, pilotRoleId),
-                isAtc: hasRole(req.user.roles, atcRoleId),
-                isStaff: hasRole(req.user.roles, staffRoleId)
-            },
-            features: {
-                applicationsOpen: {
-                    pilot: true,
-                    atc: config.applications.atcRequiresPilot ? "pilots_only" : true,
-                    staff: config.applications.staffOpen
+            res.json({
+                user: {
+                    id: req.user.id,
+                    username: req.user.username,
+                    avatar: req.user.avatar
                 },
-                queueAutoApprove: config.queue.autoApprove
-            }
-        });
+                permissions: {
+                    isPilot: hasRole(roles, pilotRoleId),
+                    isAtc: hasRole(roles, atcRoleId),
+                    isStaff: hasRole(roles, staffRoleId)
+                },
+                features: {
+                    applicationsOpen: {
+                        pilot: true,
+                        atc: config.applications.atcRequiresPilot ? "pilots_only" : true,
+                        staff: config.applications.staffOpen
+                    },
+                    queueAutoApprove: config.queue.autoApprove
+                }
+            });
+        } catch (err) {
+            return next(err);
+        }
     });
 
     return router;

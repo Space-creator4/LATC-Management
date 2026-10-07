@@ -7,6 +7,7 @@ const { loadConfig } = require("../src/config");
 const { createApp } = require("../src/server");
 const { createToken } = require("../src/lib/session");
 const { clearCache } = require("../src/lib/schemas");
+const { clearCache: clearRoleCache } = require("../src/lib/memberRoles");
 const { FakeStore, rows } = require("./helpers");
 
 const path = require("node:path");
@@ -48,8 +49,10 @@ const baseEnv = {
  */
 async function withApp({ env = {}, storeResponses = {}, roles = [], signedIn = true, discord = undefined } = {}, run) {
     // The schema loader caches per role, so a test that points at different
-    // fixtures has to drop it or it would read the previous test's files.
+    // fixtures has to drop it or it would read the previous test's files. The
+    // role refresh caches per member too, and tests share one member id.
     clearCache();
+    clearRoleCache();
 
     if (env.LATC_DATA_DIR) {
         process.env.LATC_DATA_DIR = env.LATC_DATA_DIR;
@@ -143,6 +146,21 @@ const validAtcBody = {
     pilotReference: "PILOT-42",
     position: "ground"
 };
+
+function hasRoleLike(roles, roleId) {
+    return Boolean(roleId) && Array.isArray(roles) && roles.map(String).includes(String(roleId));
+}
+
+/*
+ * A stubbed Discord client for the role refresh path. /auth/me destructures
+ * hasRole() from it, so a stub that exercises /auth/me has to provide one too.
+ */
+function makeRoleStub(roles) {
+    return {
+        fetchMemberRoles: async () => roles.slice(),
+        hasRole: hasRoleLike
+    };
+}
 
 test("config refuses to load without the client secret", () => {
     const env = { ...baseEnv };
@@ -353,6 +371,85 @@ test("atc application is accepted for a member holding the pilot role", async ()
             assert.equal(insert.params[0], "atc");
             assert.equal(insert.params[1], MEMBER_ID, "identity comes from the session");
             assert.ok(!JSON.stringify(insert.params[3]).includes("discord_user_id\":\"999"));
+        }
+    );
+});
+
+test("atc application is accepted when only the live roles show the pilot role", async () => {
+    // The session snapshot was taken before the member was given the Pilot role
+    // (the normal journey: sign in, get accepted, get the role). The gate must
+    // ask Discord again rather than trust that stale snapshot.
+    await withApp(
+        {
+            env: { DISCORD_BOT_TOKEN: "test-bot-token" },
+            roles: [],
+            discord: makeRoleStub([PILOT_ROLE]),
+            storeResponses: { "INSERT INTO web_applications": rows([{ id: 21 }]) }
+        },
+        async ({ call, store }) => {
+            const res = await call("/api/applications", { method: "POST", body: validAtcBody });
+
+            assert.equal(res.status, 201);
+            assert.equal(res.json.role, "atc");
+            assert.ok(
+                store.issued("UPDATE web_sessions SET guild_roles").length >= 1,
+                "the session row should be refreshed with the current roles"
+            );
+        }
+    );
+});
+
+test("atc application is refused when Discord really does not hold the pilot role", async () => {
+    await withApp(
+        {
+            env: { DISCORD_BOT_TOKEN: "test-bot-token" },
+            roles: [],
+            discord: makeRoleStub([])
+        },
+        async ({ call }) => {
+            const res = await call("/api/applications", { method: "POST", body: validAtcBody });
+
+            assert.equal(res.status, 403);
+            assert.equal(res.json.error, "not_a_pilot");
+        }
+    );
+});
+
+test("a Discord outage falls back to the snapshot rather than locking a pilot out", async () => {
+    await withApp(
+        {
+            env: { DISCORD_BOT_TOKEN: "test-bot-token" },
+            roles: [PILOT_ROLE],
+            discord: {
+                fetchMemberRoles: async () => {
+                    throw new Error("discord unreachable");
+                },
+                hasRole: hasRoleLike
+            },
+            storeResponses: { "INSERT INTO web_applications": rows([{ id: 41 }]) }
+        },
+        async ({ call }) => {
+            const res = await call("/api/applications", { method: "POST", body: validAtcBody });
+
+            assert.equal(res.status, 201);
+            assert.equal(res.json.role, "atc");
+        }
+    );
+});
+
+test("/auth/me reflects roles that changed after sign in", async () => {
+    await withApp(
+        {
+            env: { DISCORD_BOT_TOKEN: "test-bot-token" },
+            roles: [],
+            discord: makeRoleStub([PILOT_ROLE])
+        },
+        async ({ call }) => {
+            const res = await call("/auth/me");
+
+            assert.equal(res.status, 200);
+            assert.equal(res.json.permissions.isPilot, true, "the live check overrides the snapshot");
+            assert.equal(res.json.permissions.isAtc, false);
         }
     );
 });

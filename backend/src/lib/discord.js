@@ -101,6 +101,22 @@ async function fetchUser(accessToken) {
 }
 
 /**
+ * Role ids the member holds in the guild, read with the bot token. Throws on
+ * any error, so a caller can tell "the member has no roles" apart from "the
+ * check could not be made". Most callers want the lenient fetchGuildRoles
+ * instead, which turns failures into "no roles"; this variant exists for the
+ * rare path that must fall back to something rather than a guessed empty list.
+ */
+async function fetchMemberRoles({ botToken, guildId, userId }) {
+    const member = await discordFetch(
+        `${DISCORD_API}/guilds/${guildId}/members/${userId}`,
+        { token: botToken }
+    );
+
+    return (member.roles || []).map(String);
+}
+
+/**
  * Roles the member holds in the guild, read with the bot token.
  *
  * Returns an empty array rather than throwing when the guild, role id, or bot
@@ -114,12 +130,7 @@ async function fetchGuildRoles({ botToken, guildId, userId }) {
     }
 
     try {
-        const member = await discordFetch(
-            `${DISCORD_API}/guilds/${guildId}/members/${userId}`,
-            { token: botToken }
-        );
-
-        return (member.roles || []).map(String);
+        return await fetchMemberRoles({ botToken, guildId, userId });
     } catch (error) {
         // The bot must share the guild with the member for this to work. If it
         // cannot see them they are not in the guild, so no roles is correct.
@@ -137,6 +148,7 @@ module.exports = {
     authorizeUrl,
     exchangeCode,
     fetchUser,
+    fetchMemberRoles,
     fetchGuildRoles,
     hasRole,
     discordFetch

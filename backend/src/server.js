@@ -108,7 +108,7 @@ function createApp({ config, store, bot, discord }) {
     });
 
     app.use("/auth", createAuthRouter({ config, discord }));
-    app.use("/api/applications", createApplicationsRouter({ config }));
+    app.use("/api/applications", createApplicationsRouter({ config, discord }));
     app.use("/api/queue", createQueueRouter({ config }));
     app.use("/api/radar", createRadarRouter({ config }));
 

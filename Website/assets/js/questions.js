@@ -233,7 +233,10 @@
             return;
         }
 
-        fetch(dataUrl(setName), { headers: { Accept: "application/json" } })
+        /* The version tag keeps a schema edit in assets/data from being
+           served stale by an aggressive cache. Bump it together with the
+           page script tags when the questions change. */
+        fetch(dataUrl(setName) + "?v=3", { headers: { Accept: "application/json" } })
             .then(function (response) {
                 if (!response.ok) {
                     throw new Error("HTTP " + response.status);

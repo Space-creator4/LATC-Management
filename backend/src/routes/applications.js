@@ -3,6 +3,7 @@
 const express = require("express");
 const { loadSchema, validateSubmission } = require("../lib/schemas");
 const { hasRole } = require("../lib/discord");
+const { refreshMemberRoles } = require("../lib/memberRoles");
 const { requireUser } = require("../lib/session");
 
 /**
@@ -14,14 +15,15 @@ const { requireUser } = require("../lib/session");
  *   - staff is refused unless APPLICATIONS_STAFF_OPEN is set, so a stale cached
  *     page cannot reopen intake
  *   - atc is refused unless the applicant's own Discord account already holds the
- *     pilot role
+ *     pilot role, checked live rather than against the login-time snapshot so a
+ *     member promoted after signing in is not locked out
  *   - fields are validated against the same JSON the form was rendered from
  *
  * A client that skips the gate, edits the payload, or forges the session is still
  * refused, because none of those change what this code checks.
  */
 
-function createApplicationsRouter({ config }) {
+function createApplicationsRouter({ config, discord = require("../lib/discord") }) {
     const router = express.Router();
 
     router.post("/", requireUser, async (req, res, next) => {
@@ -53,7 +55,15 @@ function createApplicationsRouter({ config }) {
             }
 
             if (role === "atc" && config.applications.atcRequiresPilot) {
-                const isPilot = hasRole(req.user.roles, config.discord.pilotRoleId);
+                /* Live, not the login snapshot: a member who becomes a pilot
+                   after signing in (the normal flow) must not be blocked here. */
+                const roles = await refreshMemberRoles({
+                    store: req.store,
+                    config,
+                    user: req.user,
+                    discord
+                });
+                const isPilot = hasRole(roles, config.discord.pilotRoleId);
 
                 if (!isPilot) {
                     return res.status(403).json({

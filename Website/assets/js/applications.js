@@ -65,29 +65,50 @@
 
         var gateError = gate.querySelector(".field__error");
 
+        function revealFor(input, moveFocus) {
+            var eligible = input && input.value === "yes" && input.checked;
+
+            form.hidden = !eligible;
+            result.hidden = eligible;
+
+            /* The question stays visible either way, so the blocked message
+               has the question it answers sitting directly above it. */
+            gate.hidden = false;
+
+            if (gateError) {
+                gateError.classList.remove("is-visible");
+                gateError.textContent = "";
+            }
+
+            if (eligible && moveFocus) {
+                var first = form.querySelector("input:not([type=hidden]), textarea, select");
+                if (first) {
+                    first.focus();
+                }
+            }
+        }
+
         gate.querySelectorAll("[data-eligibility-answer]").forEach(function (input) {
             input.addEventListener("change", function () {
-                var eligible = input.value === "yes" && input.checked;
-
-                form.hidden = !eligible;
-                result.hidden = eligible;
-
-                /* The question stays visible either way, so the blocked message
-                   has the question it answers sitting directly above it. */
-                gate.hidden = false;
-
-                if (gateError) {
-                    gateError.classList.remove("is-visible");
-                    gateError.textContent = "";
-                }
-
-                if (eligible) {
-                    var first = form.querySelector("input:not([type=hidden]), textarea, select");
-                    if (first) {
-                        first.focus();
-                    }
-                }
+                revealFor(input, true);
             });
+        });
+
+        /* A confirmed pilot should not have to answer the eligibility question
+           again: their account already proves it. Pre-select the box for them
+           so the form is sitting ready when the page loads. */
+        api.onSessionChange(function () {
+            if (!api.isSignedIn() || !api.hasPermission("isPilot")) {
+                return;
+            }
+
+            var yes = gate.querySelector('[data-eligibility-answer][value="yes"]');
+            var no = gate.querySelector('[data-eligibility-answer][value="no"]');
+
+            if (yes && !yes.checked && !no.checked) {
+                yes.checked = true;
+                revealFor(yes, false);
+            }
         });
     });
 
