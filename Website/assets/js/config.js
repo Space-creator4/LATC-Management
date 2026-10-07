@@ -6,8 +6,8 @@
    need to edit the HTML to change a link.
 
    Any value still containing REPLACE- is treated as "not set yet". Links bound
-   to those values render with a dashed outline, are skipped when a visitor
-   activates them, and the console lists what still needs filling in.
+   to those values render with a dashed outline and are skipped when a visitor
+   activates them, so a half-finished config is visible rather than silent.
 
    Relative page links (Home, About, Rules, ...) are intentionally NOT here —
    they are internal and must keep working without configuration.
@@ -50,7 +50,7 @@ window.LATC_CONFIG = Object.freeze({
     /* ---- Rules ---------------------------------------------------------- */
 
     /** Full rulebook document (PDF / Google Doc / Notion page). */
-    rulebookUrl: "https://REPLACE-WITH-FULL-RULEBOOK-URL",
+    rulebookUrl: "https://go.fliplink.me/view/66D3E7EC-DD10-465B-A3FE-16AC22B5B693",
 
     /* ---- Contact -------------------------------------------------------- */
 

@@ -103,8 +103,6 @@
         return !value || /REPLACE|TODO|example\.com/i.test(value);
     };
 
-    var pending = [];
-
     document.querySelectorAll("[data-config]").forEach(function (el) {
         var key = el.getAttribute("data-config");
         var value = config[key];
@@ -117,7 +115,6 @@
             el.classList.add("is-unconfigured");
             el.setAttribute("aria-disabled", "true");
             el.removeAttribute("href");
-            pending.push({ key: key, element: el });
             return;
         }
 
@@ -128,17 +125,6 @@
             el.setAttribute("rel", "noopener noreferrer");
         }
     });
-
-    if (pending.length) {
-        console.info(
-            "[latc] not configured yet: " +
-                pending
-                    .map(function (entry) {
-                        return entry.key;
-                    })
-                    .join(", ")
-        );
-    }
 
     /* Belt and braces for anything still carrying the class without a handler,
        such as a button styled as a link. */
