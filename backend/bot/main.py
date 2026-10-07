@@ -134,6 +134,7 @@ class Config:
     guild_id: int | None
     modlog_channel_id: int | None
     staff_role_id: int | None
+    application_review_channel_id: int | None
     owner_ids: frozenset[int]
     verification_role_id: int | None
     code_expiry_minutes: int
@@ -157,6 +158,7 @@ class Config:
             guild_id=env_int("GUILD_ID"),
             modlog_channel_id=env_int("MODLOG_CHANNEL_ID"),
             staff_role_id=env_int("STAFF_ROLE_ID"),
+            application_review_channel_id=env_int("APP_REVIEW_CHANNEL_ID"),
             owner_ids=env_id_set("OWNER_IDS"),
             verification_role_id=env_int("VERIFICATION_ROLE_ID"),
             code_expiry_minutes=max(env_int_or("VERIFY_CODE_EXPIRY_MINUTES", 10), 1),
@@ -254,6 +256,11 @@ CREATE TABLE IF NOT EXISTS verify_settings (
     cooldown_seconds {INT},
     allow_transfer {INT},
     remove_role_on_unlink {INT}
+);
+
+CREATE TABLE IF NOT EXISTS application_notifications (
+    app_id {INT} PRIMARY KEY,
+    notified_at {INT} NOT NULL
 );
 """
 
@@ -630,6 +637,44 @@ class Database:
         return await self.execute(
             "DELETE FROM automod_ignores WHERE guild_id = ? AND kind = ? AND target_id = ?",
             (guild_id, kind, target_id),
+        )
+
+    async def list_pending_applications(self, limit: int = 20) -> list[sqlite3.Row]:
+        return await self.fetch_all(
+            "SELECT id, role, discord_user_id, discord_username, payload, created_at"
+            " FROM web_applications"
+            " WHERE status = 'pending'"
+            " AND id NOT IN (SELECT app_id FROM application_notifications)"
+            " ORDER BY created_at ASC LIMIT ?",
+            (limit,),
+        )
+
+    async def mark_application_notified(self, app_id: int, notified_at: int) -> None:
+        await self.execute(
+            "INSERT OR IGNORE INTO application_notifications (app_id, notified_at)"
+            " VALUES (?, ?)",
+            (app_id, notified_at),
+        )
+
+    async def list_open_application_reviews(self, limit: int = 200) -> list[sqlite3.Row]:
+        return await self.fetch_all(
+            "SELECT a.app_id FROM application_notifications a"
+            " JOIN web_applications w ON w.id = a.app_id"
+            " WHERE w.status = 'pending' LIMIT ?",
+            (limit,),
+        )
+
+    async def get_application(self, app_id: int) -> sqlite3.Row | None:
+        return await self.fetch_one(
+            "SELECT id, role, discord_user_id, discord_username, payload, status"
+            " FROM web_applications WHERE id = ?",
+            (app_id,),
+        )
+
+    async def decide_application(self, app_id: int, decision: str) -> int:
+        return await self.execute(
+            "UPDATE web_applications SET status = ? WHERE id = ? AND status = 'pending'",
+            (decision, app_id),
         )
 
     async def add_warning(
@@ -1200,7 +1245,110 @@ class RobloxClient:
         raise RobloxError(f"No Roblox account called `{truncate(username, 32)}` exists.")
 
 
-@dataclass(frozen=True)
+APPLICATION_LABELS = {
+    "robloxUsername": "Roblox username",
+    "discordUsername": "Discord username",
+    "email": "Email address",
+    "age": "Age",
+    "experience": "Previous aviation experience",
+    "availability": "Typical availability",
+    "motivation": "Why do you want to join?",
+    "pilotReference": "Pilot reference",
+    "position": "Desired position",
+    "agreedRules": "Agreed to rules",
+}
+
+
+def build_application_embed(
+    row: sqlite3.Row, decided_by: str | None = None, decision: str | None = None
+) -> discord.Embed:
+    app_id = int(row["id"])
+    payload = row["payload"]
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except (TypeError, ValueError):
+            payload = {}
+    if payload is None or isinstance(payload, str) or not isinstance(payload, dict):
+        payload = {}
+
+    if decision == "approved":
+        color = APPROVED_COLOR
+    elif decision == "rejected":
+        color = DENIED_COLOR
+    else:
+        color = PENDING_COLOR
+
+    role = str(row.get("role") or "application").strip().title()
+    title = f"New {role} application" if decision is None else f"{role} application decided"
+    embed = discord.Embed(title=title, color=color)
+
+    applicant = payload.get("discordUsername") or str(row.get("discord_username") or "Applicant")
+    embed.add_field(name="Applicant", value=f"{truncate(str(applicant), 40)}", inline=True)
+    embed.add_field(name="Application #", value=str(app_id), inline=True)
+
+    for key, label in APPLICATION_LABELS.items():
+        if key in payload and payload[key] not in (None, ""):
+            embed.add_field(name=label, value=truncate(str(payload[key]), 1000), inline=True)
+
+    shown = set(APPLICATION_LABELS) | {"source", "submittedAt", "discordAccount"}
+    for key, value in payload.items():
+        if key in shown or value in (None, ""):
+            continue
+        embed.add_field(name=truncate(str(key).replace("_", " ").title(), 60), value=truncate(str(value), 1000), inline=True)
+
+    if decided_by is not None and decision is not None:
+        verdict = "accepted" if decision == "approved" else "declined"
+        embed.add_field(name="Decision", value=f"{verdict} by {decided_by}", inline=False)
+
+    footer = f"Application #{app_id}"
+    submitted = str(payload.get("submittedAt") or "").strip()
+    if submitted:
+        footer += f" • submitted {submitted[:19].replace('T', ' ')}"
+    embed.set_footer(text=footer)
+    return embed
+
+
+class ApplicationReviewButton(discord.ui.Button):
+    def __init__(self, app_id: int, decision: str) -> None:
+        label = "Accept" if decision == "approved" else "Reject"
+        style = discord.ButtonStyle.success if decision == "approved" else discord.ButtonStyle.danger
+        super().__init__(style=style, label=label, custom_id=f"latc:app:{app_id}:{decision}")
+        self.app_id = app_id
+        self.decision = decision
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        bot: LATCManagement = interaction.client  # type: ignore[assignment]
+        if not bot.is_staff(interaction.user):
+            await interaction.response.send_message(
+                "Only staff can decide applications.", ephemeral=True
+            )
+            return
+        await interaction.response.defer(ephemeral=True)
+        row = await bot.db.get_application(self.app_id)
+        changed = await bot.db.decide_application(self.app_id, self.decision)
+        if not changed or row is None:
+            await interaction.followup.send(
+                "This application has already been decided.", ephemeral=True
+            )
+            return
+        embed = build_application_embed(row, decided_by=interaction.user.mention, decision=self.decision)
+        for child in self.view.children or []:
+            child.disabled = True
+        await interaction.message.edit(embed=embed, view=self.view)
+        await bot.notify_application_outcome(row, self.decision)
+        await interaction.followup.send(
+            f"Application #{self.app_id} recorded as {self.decision}.", ephemeral=True
+        )
+
+
+class ApplicationReviewView(discord.ui.View):
+    def __init__(self, app_id: int) -> None:
+        super().__init__(timeout=None)
+        self.add_item(ApplicationReviewButton(app_id, "approved"))
+        self.add_item(ApplicationReviewButton(app_id, "rejected"))
+
+
 class RobloxVerifyButton(discord.ui.Button):
     def __init__(self, bot: "LATCManagement", guild_id: int) -> None:
         super().__init__(
@@ -1835,6 +1983,50 @@ class LATCManagement(commands.Bot):
     async def on_ready(self) -> None:
         log.info("Logged in as %s in %s guild(s)", self.user, len(self.guilds))
         await self.sync_commands()
+        if self.config.application_review_channel_id is not None:
+            for row in await self.db.list_open_application_reviews():
+                self.add_view(ApplicationReviewView(int(row["app_id"])))
+            asyncio.create_task(self.application_review_loop())
+
+    async def application_review_loop(self) -> None:
+        while True:
+            try:
+                channel = self.get_channel(self.config.application_review_channel_id) or await self.fetch_channel(
+                    self.config.application_review_channel_id
+                )
+                if isinstance(channel, discord.TextChannel):
+                    for row in await self.db.list_pending_applications(20):
+                        embed = build_application_embed(row)
+                        try:
+                            await channel.send(embed=embed, view=ApplicationReviewView(int(row["id"])))
+                        except discord.HTTPException as error:
+                            log.warning("Failed to post application %s: %s", row["id"], error)
+                            continue
+                        await self.db.mark_application_notified(int(row["id"]), now_ts())
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("Application review loop error")
+            await asyncio.sleep(20)
+
+    async def notify_application_outcome(self, row: sqlite3.Row, decision: str) -> None:
+        role = str(row.get("role") or "application").strip().title()
+        app_id = int(row["id"])
+        user_id = int(row["discord_user_id"])
+        verdict = "accepted" if decision == "approved" else "declined"
+        text = (
+            f"Your {role} application (#{app_id}) has been {verdict}. "
+            + (
+                "Welcome aboard - check the Discord for your next steps."
+                if decision == "approved"
+                else "Thank you for applying - you are welcome to reapply in the future."
+            )
+        )
+        try:
+            user = self.get_user(user_id) or await self.fetch_user(user_id)
+            await user.send(text)
+        except discord.HTTPException as error:
+            log.warning("Could not DM application outcome to %s: %s", user_id, error)
 
     async def sync_commands(self) -> None:
         target = discord.Object(id=self.config.guild_id) if self.config.guild_id else None

@@ -1,4 +1,7 @@
+import asyncio
+import json
 import pathlib
+import tempfile
 import unittest
 
 from main import SCHEMA, Config, Database
@@ -28,7 +31,8 @@ class NeonDbConfigTests(unittest.TestCase):
 
 
 class WebsiteHandoffTests(unittest.TestCase):
-    """Applications moved to the website, so the bot must not own them any more."""
+    """Applications are owned by the website API. The bot only reads the shared
+    web_applications table to post reviews; it must not own the old panel flow."""
 
     def test_schema_has_no_application_table(self):
         self.assertNotIn("applications", SCHEMA)
@@ -44,12 +48,11 @@ class WebsiteHandoffTests(unittest.TestCase):
         ):
             self.assertNotIn(removed, fields)
 
-    def test_database_has_no_application_methods(self):
+    def test_database_has_no_legacy_application_methods(self):
         for removed in (
             "create_application",
             "set_application_message",
             "set_application_status",
-            "get_application",
             "pending_for_user",
             "list_applications",
             "get_panel_message_id",
@@ -58,6 +61,17 @@ class WebsiteHandoffTests(unittest.TestCase):
         ):
             self.assertFalse(hasattr(Database, removed), removed)
 
+    def test_review_methods_exist(self):
+        for kept in (
+            "list_pending_applications",
+            "mark_application_notified",
+            "list_open_application_reviews",
+            "get_application",
+            "decide_application",
+        ):
+            self.assertTrue(hasattr(Database, kept), kept)
+        self.assertEqual(Config.__dataclass_fields__["application_review_channel_id"].type, "int | None")
+
     def test_bot_keeps_roblox_verification(self):
         """Removing applications must not take Roblox verification with it."""
         import main
@@ -65,6 +79,71 @@ class WebsiteHandoffTests(unittest.TestCase):
         for kept in ("RobloxVerifyButton", "build_verify_embed", "build_profile_embed"):
             self.assertTrue(hasattr(main, kept), kept)
         self.assertTrue(hasattr(main.LATCManagement, "attempt_verification"))
+        self.assertTrue(hasattr(main.LATCManagement, "application_review_loop"))
+        self.assertTrue(hasattr(main.LATCManagement, "notify_application_outcome"))
+
+
+class ApplicationReviewFlowTests(unittest.TestCase):
+    def test_review_cycle_on_sqlite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = Database(pathlib.Path(directory) / "test.db")
+            payload = json.dumps({"robloxUsername": "pilot_one", "motivation": "love flying"})
+
+            async def exercise():
+                await db.execute(
+                    "CREATE TABLE IF NOT EXISTS web_applications ("
+                    " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    " role TEXT NOT NULL,"
+                    " discord_user_id INTEGER NOT NULL,"
+                    " discord_username TEXT NOT NULL,"
+                    " payload TEXT NOT NULL,"
+                    " status TEXT NOT NULL DEFAULT 'pending',"
+                    " created_at INTEGER NOT NULL"
+                    ")"
+                )
+                await db.execute(
+                    "INSERT INTO web_applications (role, discord_user_id, discord_username,"
+                    " payload, status, created_at) VALUES ('pilot', 111, 'pilot_one', ?, 'pending', 1000)",
+                    (payload,),
+                )
+                await db.execute(
+                    "INSERT INTO web_applications (role, discord_user_id, discord_username,"
+                    " payload, status, created_at) VALUES ('pilot', 222, 'pilot_two', ?, 'pending', 1001)",
+                    (payload,),
+                )
+                await db.execute(
+                    "INSERT INTO web_applications (role, discord_user_id, discord_username,"
+                    " payload, status, created_at) VALUES ('atc', 333, 'atc_one', ?, 'approved', 1002)",
+                    (payload,),
+                )
+
+                first = await db.fetch_one("SELECT id FROM web_applications ORDER BY id LIMIT 1")
+                notified_id = int(
+                    (await db.fetch_one("SELECT id FROM web_applications WHERE discord_user_id = 222"))["id"]
+                )
+                first_id = int(first["id"])
+
+                await db.mark_application_notified(notified_id, 5000)
+
+                pending = await db.list_pending_applications(20)
+                self.assertEqual([int(row["id"]) for row in pending], [first_id])
+
+                row = await db.get_application(first_id)
+                self.assertIsNotNone(row)
+                self.assertEqual(row["status"], "pending")
+
+                self.assertEqual(await db.decide_application(first_id, "approved"), 1)
+                self.assertEqual((await db.get_application(first_id))["status"], "approved")
+                self.assertEqual(await db.decide_application(first_id, "rejected"), 0)
+
+                reopened = [int(row["app_id"]) for row in await db.list_open_application_reviews(200)]
+                self.assertNotIn(first_id, reopened)
+                self.assertIn(notified_id, reopened)
+
+            try:
+                asyncio.run(exercise())
+            finally:
+                db.close()
 
 
 if __name__ == "__main__":

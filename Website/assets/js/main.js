@@ -137,52 +137,6 @@
     });
 
     /* ------------------------------------------------------------------
-       Statistics
-       Figures are never hard-coded. Without an endpoint the neutral
-       placeholder text stays as it is.
-       ------------------------------------------------------------------ */
-    var statValues = document.querySelectorAll("[data-stat]");
-
-    function renderStat(key, value) {
-        statValues.forEach(function (node) {
-            if (node.getAttribute("data-stat") !== key) {
-                return;
-            }
-
-            node.textContent = typeof value === "number" ? value.toLocaleString("en-GB") : String(value);
-
-            var note = node.parentElement && node.parentElement.querySelector(".stat__note");
-
-            if (note) {
-                note.hidden = true;
-            }
-        });
-    }
-
-    var statKeys = ["members", "controllers", "pilots", "operations"];
-
-    if (statValues.length && config.statsApiUrl && !isPlaceholder(config.statsApiUrl)) {
-        fetch(config.statsApiUrl, { headers: { Accept: "application/json" } })
-            .then(function (response) {
-                if (!response.ok) {
-                    throw new Error("HTTP " + response.status);
-                }
-                return response.json();
-            })
-            .then(function (data) {
-                statKeys.forEach(function (key) {
-                    if (data && data[key] !== undefined) {
-                        renderStat(key, data[key]);
-                    }
-                });
-            })
-            .catch(function () {
-                /* A missing statistics feed is not worth interrupting anyone
-                   over. The placeholders read as "not published yet". */
-            });
-    }
-
-    /* ------------------------------------------------------------------
        Scroll reveals
        ------------------------------------------------------------------ */
     var revealables = document.querySelectorAll(".reveal");

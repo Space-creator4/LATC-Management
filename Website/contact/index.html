@@ -96,7 +96,7 @@
       </nav>
       <p class="eyebrow">Contact</p>
       <h1>Get in touch</h1>
-      <p class="lead">Discord is the fastest way to reach us. If you would rather send a message, use the form below.</p>
+      <p class="lead">Discord is the fastest way to reach us. Prefer to write it down? There is an email address below.</p>
     </div>
   </section>
 
@@ -151,88 +151,26 @@
     </div>
   </section>
 
-  <!-- ================= Form ================= -->
-  <section class="section">
+  <!-- ================= Written ================= -->
+  <section class="section section--alt">
     <div class="container split">
       <div class="reveal">
-        <p class="eyebrow">Send A Message</p>
-        <h2>General enquiries</h2>
-        <p class="lead mt-2">Use the form for general questions about the community, the network, or this website. For application queries and rule reports, Discord is faster.</p>
-        <p class="mt-2">Please include your Roblox username so we can identify you.</p>
-
-        <div class="callout callout--warn mt-4">
-          <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-          <div>
-            <p class="callout__title">This form does not send yet</p>
-            <p>The site is a static front-end. This form validates in your browser and then confirms locally. Connect it to your own form handler or email service to start receiving messages.</p>
-          </div>
-        </div>
-
-        <div class="callout mt-3">
-          <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v18M4 12h16" opacity=".5"/><circle cx="12" cy="12" r="9"/></svg>
-          <div>
-            <p class="callout__title">Never share your Roblox password</p>
-            <p>Staff will never ask for your Roblox password, cookies, or login. If someone claiming to be from Latitude ATC asks for them, report it in Discord immediately.</p>
-          </div>
+        <p class="eyebrow">Prefer To Write It Down?</p>
+        <h2>Email or Discord</h2>
+        <p class="lead mt-2">For anything that should reach the team privately, write to us at <a href="#" data-config="contactEmail">support@latc.co.uk</a>. Include your Roblox username so we can identify you.</p>
+        <p class="mt-2">Application queries and rule reports are answered fastest in Discord. Either way, a real person reads every message.</p>
+        <div class="btn-row mt-3">
+          <a class="btn btn--discord" href="#" data-config="discordInvite" data-external>Open Discord</a>
+          <a class="btn btn--secondary" href="#" data-config="contactEmail">Email the team</a>
         </div>
       </div>
 
       <div class="reveal" data-delay="1">
-        <div class="card">
-          <form class="form" id="contact-form" novalidate>
-            <div class="form__row">
-              <div class="field">
-                <label class="field__label" for="name">Your name <span class="field__req" aria-hidden="true">*</span></label>
-                <input class="field__control" type="text" id="name" name="name" placeholder="First and last name" autocomplete="name" required>
-                <p class="field__error" data-error-for="name" role="alert"></p>
-              </div>
-              <div class="field">
-                <label class="field__label" for="contact-discord">Discord username <span class="field__req" aria-hidden="true">*</span></label>
-                <input class="field__control" type="text" id="contact-discord" name="discord" placeholder="e.g. pilot#0000" required>
-                <p class="field__error" data-error-for="contact-discord" role="alert"></p>
-              </div>
-            </div>
-
-            <div class="field">
-              <label class="field__label" for="email">Email address <span class="field__req" aria-hidden="true">*</span></label>
-              <input class="field__control" type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required>
-              <p class="field__error" data-error-for="email" role="alert"></p>
-            </div>
-
-            <div class="field">
-              <label class="field__label" for="roblox">Roblox username</label>
-              <input class="field__control" type="text" id="roblox" name="roblox" placeholder="Your Roblox display name">
-              <p class="field__hint">Optional, but it helps us find you.</p>
-            </div>
-
-            <div class="field">
-              <label class="field__label" for="topic">Topic</label>
-              <select class="field__control" id="topic" name="topic">
-                <option>General question</option>
-                <option>Application enquiry</option>
-                <option>Report a rule breach</option>
-                <option>Technical issue with this website</option>
-                <option>Something else</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label class="field__label" for="message">Message <span class="field__req" aria-hidden="true">*</span></label>
-              <textarea class="field__control" id="message" name="message" placeholder="How can we help?" required></textarea>
-              <p class="field__error" data-error-for="message" role="alert"></p>
-            </div>
-
-            <p class="form__note">Fields marked <span class="field__req" aria-hidden="true">*</span> are required.</p>
-
-            <button class="btn btn--primary" type="submit">Send message</button>
-          </form>
-
-          <div class="form-alert mt-3" id="form-alert">
-            <svg class="form-alert__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5L16 9"/></svg>
-            <div>
-              <strong>Message ready to send</strong>
-              <p>Your message passed validation, but this site is not yet connected to a mail service. Reach us directly on Discord in the meantime.</p>
-            </div>
+        <div class="callout">
+          <svg class="callout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v18M4 12h16" opacity=".5"/><circle cx="12" cy="12" r="9"/></svg>
+          <div>
+            <p class="callout__title">Never share your Roblox password</p>
+            <p>Staff will never ask for your Roblox password, cookies, or login. If someone claiming to be from Latitude ATC asks for them, report it in Discord immediately.</p>
           </div>
         </div>
       </div>

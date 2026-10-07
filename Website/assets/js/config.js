@@ -54,19 +54,6 @@ window.LATC_CONFIG = Object.freeze({
 
     /* ---- Contact -------------------------------------------------------- */
 
-    /** Public contact address. Replace with the real address, or leave the placeholder. */
-    contactEmail: "mailto:support@latc.co.uk",
-
-    /* ---- Statistics ----------------------------------------------------- */
-
-    /**
-     * Optional JSON endpoint that returns community figures.
-     * Expected shape (any subset of keys is fine):
-     *
-     *   { "members": 0, "controllers": 0, "pilots": 0, "operations": 0 }
-     *
-     * While this is null the statistics section shows a neutral placeholder
-     * rather than an invented number. Do not hard-code figures here.
-     */
-    statsApiUrl: null
+    /** Public contact address. */
+    contactEmail: "mailto:support@latc.co.uk"
 });

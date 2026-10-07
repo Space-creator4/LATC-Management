@@ -29,6 +29,8 @@
 # Optional bot tuning, all with working defaults:
 #   BOT_ENABLED=false         run the API without starting the bot
 #   PYTHON_BIN=<path>         override interpreter discovery
+#   APP_REVIEW_CHANNEL_ID    channel where the bot posts applications
+#                            (Accept/Reject buttons); unset turns it off
 #
 # In the Discord portal, add that exact redirect URI to the OAuth2 settings. It
 # points at this service, not at latcm.co.uk, because Discord calls it directly.
@@ -86,3 +88,6 @@ services:
       # bot is deliberately offline.
       - key: BOT_ENABLED
         value: "true"
+      # Channel where application reviews (Accept/Reject buttons) are posted.
+      - key: APP_REVIEW_CHANNEL_ID
+        value: "1554586623096786994"
