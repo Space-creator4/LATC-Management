@@ -146,5 +146,100 @@ class ApplicationReviewFlowTests(unittest.TestCase):
                 db.close()
 
 
+class AtcPanelFeatureTests(unittest.TestCase):
+    def test_schema_has_atc_panel_tables(self):
+        for table in ("atc_claims", "atc_panels", "atis_entries"):
+            self.assertIn(table, SCHEMA, table)
+
+    def test_config_has_atc_fields(self):
+        fields = Config.__dataclass_fields__
+        for kept in (
+            "atc_category_id",
+            "atc_panel_channel_id",
+            "atc_atis_channel_id",
+        ):
+            self.assertIn(kept, fields, kept)
+            self.assertEqual(fields[kept].type, "int | None")
+
+    def test_postgres_conversion_keeps_on_conflict_upsert(self):
+        sql = (
+            "INSERT INTO atc_claims (guild_id, channel_id, user_id, claimed_at)"
+            " VALUES (?, ?, ?, ?) ON CONFLICT (guild_id, channel_id)"
+            " DO UPDATE SET user_id = ?, claimed_at = ?"
+        )
+        self.assertEqual(
+            Database._postgres_sql(sql),
+            "INSERT INTO atc_claims (guild_id, channel_id, user_id, claimed_at)"
+            " VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id, channel_id)"
+            " DO UPDATE SET user_id = $5, claimed_at = $6",
+        )
+
+    def test_panel_message_and_atis_roundtrip(self):
+        import main
+
+        for kept in (
+            "ClaimAtcButton",
+            "AtcClaimView",
+            "AtisUpdateButton",
+            "AtisUpdateModal",
+            "AtisView",
+            "build_atc_panel_embed",
+            "build_atis_embed",
+        ):
+            self.assertTrue(hasattr(main, kept), kept)
+        self.assertTrue(hasattr(main.LATCManagement, "refresh_atc_panel"))
+        self.assertTrue(hasattr(main.LATCManagement, "refresh_atis"))
+        self.assertTrue(hasattr(main.LATCManagement, "publish_atc_panel"))
+
+        with tempfile.TemporaryDirectory() as directory:
+            db = Database(pathlib.Path(directory) / "test.db")
+
+            async def exercise():
+                self.assertIsNone(await db.get_atc_panel_message(10))
+                await db.set_atc_panel_message(10, 555)
+                self.assertEqual(await db.get_atc_panel_message(10), 555)
+                await db.set_atc_panel_message(10, 777)
+                self.assertEqual(await db.get_atc_panel_message(10), 777)
+
+                await db.set_atis_entry(10, 100, 900, "runway 09 ILS", "perm 10 clicks", 1)
+                entry = await db.get_atis_entry(10, 100)
+                self.assertIsNotNone(entry)
+                self.assertEqual(entry["message_id"], 900)
+                self.assertEqual(entry["arrivals"], "runway 09 ILS")
+                self.assertEqual(entry["departures"], "perm 10 clicks")
+                await db.set_atis_entry(10, 100, 901, "runway 27 ILS", "", 2)
+                entry = await db.get_atis_entry(10, 100)
+                self.assertEqual(entry["message_id"], 901)
+                self.assertEqual(entry["arrivals"], "runway 27 ILS")
+                self.assertEqual(entry["departures"], "")
+                self.assertEqual(entry["updated_by"], 2)
+                self.assertEqual(len(await db.list_atis_entries(10)), 1)
+
+            try:
+                asyncio.run(exercise())
+            finally:
+                db.close()
+
+    def test_claim_release_and_conflict(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = Database(pathlib.Path(directory) / "test.db")
+
+            async def exercise():
+                self.assertIsNone(await db.claim_atc_position(10, 100, 1))
+                self.assertEqual(await db.atc_claim_for(10, 100), 1)
+                self.assertEqual(await db.claim_atc_position(10, 100, 1), None)
+                self.assertEqual(await db.claim_atc_position(10, 100, 2), 1)
+                self.assertEqual(await db.atc_claim_for(10, 100), 1)
+                self.assertEqual(len(await db.list_atc_claims(10)), 1)
+                self.assertTrue(await db.release_atc_claim(10, 100))
+                self.assertFalse(await db.release_atc_claim(10, 100))
+                self.assertIsNone(await db.atc_claim_for(10, 100))
+
+            try:
+                asyncio.run(exercise())
+            finally:
+                db.close()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -31,6 +31,11 @@
 #   PYTHON_BIN=<path>         override interpreter discovery
 #   APP_REVIEW_CHANNEL_ID    channel where the bot posts applications
 #                            (Accept/Reject buttons); unset turns it off
+#   ATC_CATEGORY_ID          category whose voice channels are the ATC
+#                            positions shown on the claim panel
+#   ATC_PANEL_CHANNEL_ID     text channel holding the claim panel embed
+#   ATC_ATIS_CHANNEL_ID      text channel for per-airport ATIS embeds; unset
+#                            reuses the panel channel
 #
 # In the Discord portal, add that exact redirect URI to the OAuth2 settings. It
 # points at this service, not at latcm.co.uk, because Discord calls it directly.

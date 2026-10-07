@@ -36,6 +36,9 @@ APPROVED_COLOR = 0x3BA55D
 DENIED_COLOR = 0xED4245
 UNVERIFIED_COLOR = 0x8B5CF6
 
+# Discord embeds allow up to 25 fields; keep the panel safely under that.
+MAX_PANEL_POSITIONS = 24
+
 # Verification reads public Roblox profile data only. No Roblox account, password,
 # cookie, .ROBLOSECURITY, OAuth client, or access/refresh token is used or stored.
 ROBLOX_USER_API = "https://users.roblox.com/v1/users"
@@ -135,6 +138,9 @@ class Config:
     modlog_channel_id: int | None
     staff_role_id: int | None
     application_review_channel_id: int | None
+    atc_category_id: int | None
+    atc_panel_channel_id: int | None
+    atc_atis_channel_id: int | None
     owner_ids: frozenset[int]
     verification_role_id: int | None
     code_expiry_minutes: int
@@ -159,6 +165,9 @@ class Config:
             modlog_channel_id=env_int("MODLOG_CHANNEL_ID"),
             staff_role_id=env_int("STAFF_ROLE_ID"),
             application_review_channel_id=env_int("APP_REVIEW_CHANNEL_ID"),
+            atc_category_id=env_int("ATC_CATEGORY_ID"),
+            atc_panel_channel_id=env_int("ATC_PANEL_CHANNEL_ID"),
+            atc_atis_channel_id=env_int("ATC_ATIS_CHANNEL_ID"),
             owner_ids=env_id_set("OWNER_IDS"),
             verification_role_id=env_int("VERIFICATION_ROLE_ID"),
             code_expiry_minutes=max(env_int_or("VERIFY_CODE_EXPIRY_MINUTES", 10), 1),
@@ -261,6 +270,30 @@ CREATE TABLE IF NOT EXISTS verify_settings (
 CREATE TABLE IF NOT EXISTS application_notifications (
     app_id {INT} PRIMARY KEY,
     notified_at {INT} NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS atc_claims (
+    guild_id {INT} NOT NULL,
+    channel_id {INT} NOT NULL,
+    user_id {INT} NOT NULL,
+    claimed_at {INT} NOT NULL,
+    PRIMARY KEY (guild_id, channel_id)
+);
+
+CREATE TABLE IF NOT EXISTS atc_panels (
+    guild_id {INT} PRIMARY KEY,
+    message_id {INT} NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS atis_entries (
+    guild_id {INT} NOT NULL,
+    channel_id {INT} NOT NULL,
+    message_id {INT} NOT NULL,
+    arrivals TEXT NOT NULL DEFAULT '',
+    departures TEXT NOT NULL DEFAULT '',
+    updated_by {INT},
+    updated_at {INT} NOT NULL,
+    PRIMARY KEY (guild_id, channel_id)
 );
 """
 
@@ -675,6 +708,108 @@ class Database:
         return await self.execute(
             "UPDATE web_applications SET status = ? WHERE id = ? AND status = 'pending'",
             (decision, app_id),
+        )
+
+    async def claim_atc_position(
+        self, guild_id: int, channel_id: int, user_id: int
+    ) -> int | None:
+        """Claim a voice channel as ATC.
+
+        Returns the previous claimant when someone else already holds the position,
+        or None when the claim was stored. The same controller re-pressing keeps their
+        claim and also returns None.
+        """
+        row = await self.fetch_one(
+            "SELECT user_id FROM atc_claims WHERE guild_id = ? AND channel_id = ?",
+            (guild_id, channel_id),
+        )
+        if row is not None and int(row["user_id"]) != user_id:
+            return int(row["user_id"])
+        await self.execute(
+            "INSERT INTO atc_claims (guild_id, channel_id, user_id, claimed_at)"
+            " VALUES (?, ?, ?, ?)"
+            " ON CONFLICT (guild_id, channel_id) DO UPDATE SET user_id = ?, claimed_at = ?",
+            (guild_id, channel_id, user_id, now_ts(), user_id, now_ts()),
+        )
+        return None
+
+    async def release_atc_claim(self, guild_id: int, channel_id: int) -> bool:
+        return await self.execute(
+            "DELETE FROM atc_claims WHERE guild_id = ? AND channel_id = ?",
+            (guild_id, channel_id),
+        ) > 0
+
+    async def atc_claim_for(self, guild_id: int, channel_id: int) -> int | None:
+        row = await self.fetch_one(
+            "SELECT user_id FROM atc_claims WHERE guild_id = ? AND channel_id = ?",
+            (guild_id, channel_id),
+        )
+        return int(row["user_id"]) if row is not None else None
+
+    async def list_atc_claims(self, guild_id: int) -> list[sqlite3.Row]:
+        return await self.fetch_all(
+            "SELECT channel_id, user_id, claimed_at FROM atc_claims WHERE guild_id = ?",
+            (guild_id,),
+        )
+
+    async def get_atc_panel_message(self, guild_id: int) -> int | None:
+        row = await self.fetch_one(
+            "SELECT message_id FROM atc_panels WHERE guild_id = ?", (guild_id,)
+        )
+        return int(row["message_id"]) if row is not None else None
+
+    async def set_atc_panel_message(self, guild_id: int, message_id: int) -> None:
+        await self.execute(
+            "INSERT INTO atc_panels (guild_id, message_id) VALUES (?, ?)"
+            " ON CONFLICT (guild_id) DO UPDATE SET message_id = ?",
+            (guild_id, message_id, message_id),
+        )
+
+    async def get_atis_entry(
+        self, guild_id: int, channel_id: int
+    ) -> sqlite3.Row | None:
+        return await self.fetch_one(
+            "SELECT guild_id, channel_id, message_id, arrivals, departures,"
+            " updated_by, updated_at FROM atis_entries WHERE guild_id = ? AND channel_id = ?",
+            (guild_id, channel_id),
+        )
+
+    async def set_atis_entry(
+        self,
+        guild_id: int,
+        channel_id: int,
+        message_id: int,
+        arrivals: str,
+        departures: str,
+        updated_by: int | None,
+    ) -> None:
+        await self.execute(
+            "INSERT INTO atis_entries"
+            " (guild_id, channel_id, message_id, arrivals, departures, updated_by, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT (guild_id, channel_id) DO UPDATE SET"
+            " message_id = ?, arrivals = ?, departures = ?, updated_by = ?, updated_at = ?",
+            (
+                guild_id,
+                channel_id,
+                message_id,
+                arrivals,
+                departures,
+                updated_by,
+                now_ts(),
+                message_id,
+                arrivals,
+                departures,
+                updated_by,
+                now_ts(),
+            ),
+        )
+
+    async def list_atis_entries(self, guild_id: int) -> list[sqlite3.Row]:
+        return await self.fetch_all(
+            "SELECT channel_id, message_id, arrivals, departures, updated_by, updated_at"
+            " FROM atis_entries WHERE guild_id = ?",
+            (guild_id,),
         )
 
     async def add_warning(
@@ -1349,6 +1484,198 @@ class ApplicationReviewView(discord.ui.View):
         self.add_item(ApplicationReviewButton(app_id, "rejected"))
 
 
+class ClaimAtcButton(discord.ui.Button):
+    def __init__(self, channel_id: int) -> None:
+        super().__init__(
+            style=discord.ButtonStyle.success,
+            label="Claim",
+            custom_id=f"latc:atc:claim:{channel_id}",
+        )
+        self.channel_id = channel_id
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        bot: LATCManagement = interaction.client  # type: ignore[assignment]
+        guild = interaction.guild
+        member = interaction.user
+        if guild is None or not isinstance(member, discord.Member):
+            await interaction.response.send_message(
+                "Claims only work from inside the server.", ephemeral=True
+            )
+            return
+        voice = member.voice
+        if voice is None or voice.channel is None:
+            await interaction.response.send_message(
+                f"Join <#{self.channel_id}> first, then press Claim.", ephemeral=True
+            )
+            return
+        if voice.channel.id != self.channel_id:
+            await interaction.response.send_message(
+                f"You are in <#{voice.channel.id}>. Join <#{self.channel_id}> to claim that position.",
+                ephemeral=True,
+            )
+            return
+        previous = await bot.db.claim_atc_position(guild.id, self.channel_id, member.id)
+        if previous is not None:
+            await interaction.response.send_message(
+                f"This position is already controlled by <@{previous}>.", ephemeral=True
+            )
+            return
+        await interaction.response.send_message(
+            f"You are now the ATC for <#{self.channel_id}>.", ephemeral=True
+        )
+        try:
+            await bot.refresh_atc_panel(guild)
+        except Exception:
+            log.exception("Failed to update the ATC panel after a claim in %s", guild.id)
+
+
+class AtcClaimView(discord.ui.View):
+    def __init__(self, channel_ids: Sequence[int]) -> None:
+        super().__init__(timeout=None)
+        for channel_id in channel_ids:
+            self.add_item(ClaimAtcButton(channel_id))
+
+
+class AtisUpdateButton(discord.ui.Button):
+    def __init__(self, channel_id: int) -> None:
+        super().__init__(
+            style=discord.ButtonStyle.blurple,
+            label="Update ATIS",
+            custom_id=f"latc:atis:update:{channel_id}",
+        )
+        self.channel_id = channel_id
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        bot: LATCManagement = interaction.client  # type: ignore[assignment]
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message(
+                "ATIS only works from inside the server.", ephemeral=True
+            )
+            return
+        vc = bot.get_channel(self.channel_id)
+        vc_name = vc.name if isinstance(vc, discord.VoiceChannel) else "Airport"
+        entry = await bot.db.get_atis_entry(guild.id, self.channel_id)
+        arrivals = str(entry["arrivals"]) if entry is not None else ""
+        departures = str(entry["departures"]) if entry is not None else ""
+        await interaction.response.send_modal(
+            AtisUpdateModal(self.channel_id, vc_name, arrivals, departures)
+        )
+
+
+class AtisUpdateModal(discord.ui.Modal):
+    def __init__(
+        self, channel_id: int, vc_name: str, arrivals: str = "", departures: str = ""
+    ) -> None:
+        super().__init__(title="Update ATIS", timeout=300)
+        self.channel_id = channel_id
+        self.vc_name = vc_name
+        self.arrivals_input = discord.ui.TextInput(
+            label="Arrival information",
+            style=discord.TextStyle.paragraph,
+            required=False,
+            max_length=1024,
+            default=arrivals,
+        )
+        self.departures_input = discord.ui.TextInput(
+            label="Departure information",
+            style=discord.TextStyle.paragraph,
+            required=False,
+            max_length=1024,
+            default=departures,
+        )
+        self.add_item(self.arrivals_input)
+        self.add_item(self.departures_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        bot: LATCManagement = interaction.client  # type: ignore[assignment]
+        guild = interaction.guild
+        if guild is None or interaction.message is None:
+            await interaction.response.send_message(
+                "ATIS only works from inside the server.", ephemeral=True
+            )
+            return
+        arrivals = (self.arrivals_input.value or "").strip()
+        departures = (self.departures_input.value or "").strip()
+        entry = await bot.db.get_atis_entry(guild.id, self.channel_id)
+        message_id = (
+            int(entry["message_id"]) if entry is not None else interaction.message.id
+        )
+        await bot.db.set_atis_entry(
+            guild.id,
+            self.channel_id,
+            message_id,
+            arrivals,
+            departures,
+            interaction.user.id,
+        )
+        await interaction.response.send_message(
+            f"ATIS updated for **{self.vc_name}**.", ephemeral=True
+        )
+        try:
+            fresh = await bot.db.get_atis_entry(guild.id, self.channel_id)
+            view = AtisView(self.channel_id)
+            await interaction.message.edit(
+                embed=build_atis_embed(self.vc_name, fresh), view=view
+            )
+            bot.add_view(view)
+        except discord.HTTPException:
+            pass
+
+
+class AtisView(discord.ui.View):
+    def __init__(self, channel_id: int) -> None:
+        super().__init__(timeout=None)
+        self.add_item(AtisUpdateButton(channel_id))
+
+
+def build_atc_panel_embed(
+    positions: Sequence[discord.VoiceChannel], claims: dict[int, int]
+) -> discord.Embed:
+    embed = discord.Embed(
+        title="LATC — ATC Positions",
+        description=(
+            "Join a voice channel below, then press its **Claim** button to go live as the ATC."
+        ),
+        color=ACCENT_COLOR,
+    )
+    if not positions:
+        embed.add_field(
+            name="No positions",
+            value="No voice channels were found in the ATC category.",
+            inline=False,
+        )
+        return embed
+    for position in positions:
+        holder = claims.get(position.id)
+        value = f"**ATC:** <@{holder}>" if holder else "Open"
+        embed.add_field(name=position.name, value=value, inline=True)
+    return embed
+
+
+def build_atis_embed(vc_name: str, entry: sqlite3.Row | None) -> discord.Embed:
+    embed = discord.Embed(title=f"{vc_name} — ATIS", color=ACCENT_COLOR)
+    arrivals = str(entry["arrivals"]).strip() if entry is not None else ""
+    departures = str(entry["departures"]).strip() if entry is not None else ""
+    embed.add_field(
+        name="Arrivals",
+        value=truncate(arrivals, 1000)
+        if arrivals
+        else "No arrival information set. Press **Update ATIS** below.",
+        inline=False,
+    )
+    embed.add_field(
+        name="Departures",
+        value=truncate(departures, 1000)
+        if departures
+        else "No departure information set. Press **Update ATIS** below.",
+        inline=False,
+    )
+    if entry is not None and entry["updated_at"]:
+        embed.set_footer(text=f"Last updated <t:{int(entry['updated_at'])}:R>")
+    return embed
+
+
 class RobloxVerifyButton(discord.ui.Button):
     def __init__(self, bot: "LATCManagement", guild_id: int) -> None:
         super().__init__(
@@ -1980,6 +2307,108 @@ class LATCManagement(commands.Bot):
         except discord.HTTPException as error:
             log.warning("Failed to write modlog: %s", error)
 
+    async def atc_positions(self, guild: discord.Guild) -> list[discord.VoiceChannel]:
+        """Voice channels in the configured ATC category, in channel order."""
+        if self.config.atc_category_id is None:
+            return []
+        category = self.get_channel(self.config.atc_category_id)
+        if not isinstance(category, discord.CategoryChannel) or category.guild.id != guild.id:
+            return []
+        return sorted(
+            (channel for channel in category.voice_channels),
+            key=lambda channel: (channel.position, channel.name),
+        )
+
+    async def _atc_text_channel(
+        self, guild: discord.Guild, channel_id: int | None
+    ) -> discord.TextChannel | None:
+        if channel_id is None:
+            return None
+        channel = self.get_channel(channel_id)
+        if isinstance(channel, discord.TextChannel) and channel.guild.id == guild.id:
+            return channel
+        try:
+            channel = await self.fetch_channel(channel_id)
+        except discord.HTTPException:
+            return None
+        if isinstance(channel, discord.TextChannel) and channel.guild.id == guild.id:
+            return channel
+        return None
+
+    async def atc_panel_channel(self, guild: discord.Guild) -> discord.TextChannel | None:
+        return await self._atc_text_channel(guild, self.config.atc_panel_channel_id)
+
+    async def atc_atis_channel(self, guild: discord.Guild) -> discord.TextChannel | None:
+        return await self._atc_text_channel(
+            guild,
+            self.config.atc_atis_channel_id or self.config.atc_panel_channel_id,
+        )
+
+    async def refresh_atc_panel(self, guild: discord.Guild) -> bool:
+        """Re-render the claim panel so every position shows its current ATC."""
+        channel = await self.atc_panel_channel(guild)
+        positions = (await self.atc_positions(guild))[:MAX_PANEL_POSITIONS]
+        if channel is None or not positions:
+            return False
+        claims = {
+            int(row["channel_id"]): int(row["user_id"])
+            for row in await self.db.list_atc_claims(guild.id)
+        }
+        embed = build_atc_panel_embed(positions, claims)
+        view = AtcClaimView([position.id for position in positions])
+        self.add_view(view)
+        message = None
+        message_id = await self.db.get_atc_panel_message(guild.id)
+        if message_id is not None:
+            try:
+                message = await channel.fetch_message(message_id)
+            except discord.NotFound:
+                message = None
+        if message is None:
+            message = await channel.send(embed=embed, view=view)
+            await self.db.set_atc_panel_message(guild.id, message.id)
+        else:
+            await message.edit(embed=embed, view=view)
+        return True
+
+    async def refresh_atis(self, guild: discord.Guild) -> bool:
+        """Draw one ATIS embed per airport and keep each one in sync."""
+        channel = await self.atc_atis_channel(guild)
+        positions = await self.atc_positions(guild)
+        if channel is None or not positions:
+            return False
+        entries = {
+            int(row["channel_id"]): row
+            for row in await self.db.list_atis_entries(guild.id)
+        }
+        for position in positions:
+            entry = entries.get(position.id)
+            embed = build_atis_embed(position.name, entry)
+            view = AtisView(position.id)
+            self.add_view(view)
+            message = None
+            message_id = int(entry["message_id"]) if entry is not None else None
+            if message_id is not None:
+                try:
+                    message = await channel.fetch_message(message_id)
+                except discord.NotFound:
+                    message = None
+            if message is None:
+                message = await channel.send(embed=embed, view=view)
+                await self.db.set_atis_entry(
+                    guild.id, position.id, message.id, "", "", None
+                )
+            else:
+                await message.edit(embed=embed, view=view)
+        return True
+
+    async def publish_atc_panel(self, guild: discord.Guild) -> None:
+        try:
+            await self.refresh_atc_panel(guild)
+            await self.refresh_atis(guild)
+        except Exception:
+            log.exception("Failed to publish the ATC panel for %s", guild.id)
+
     async def on_ready(self) -> None:
         log.info("Logged in as %s in %s guild(s)", self.user, len(self.guilds))
         await self.sync_commands()
@@ -1987,6 +2416,12 @@ class LATCManagement(commands.Bot):
             for row in await self.db.list_open_application_reviews():
                 self.add_view(ApplicationReviewView(int(row["app_id"])))
             asyncio.create_task(self.application_review_loop())
+        if self.config.atc_category_id is not None and (
+            self.config.atc_panel_channel_id is not None
+            or self.config.atc_atis_channel_id is not None
+        ):
+            for guild in self.guilds:
+                asyncio.create_task(self.publish_atc_panel(guild))
 
     async def application_review_loop(self) -> None:
         while True:
@@ -2737,6 +3172,24 @@ def register_commands(bot: LATCManagement) -> None:
         await bot.sync_commands()
         await interaction.followup.send("Commands synced.", ephemeral=True)
 
+    @tree.command(
+        name="atc",
+        description="Publish or refresh the ATC claim panel and airport ATIS embeds.",
+    )
+    @app_commands.check(staff_check)
+    async def atc(interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if guild is None:
+            await interaction.followup.send(
+                "This only works from inside the server.", ephemeral=True
+            )
+            return
+        await bot.publish_atc_panel(guild)
+        await interaction.followup.send(
+            "ATC claim panel and ATIS embeds refreshed.", ephemeral=True
+        )
+
 
 def register_events(bot: LATCManagement) -> None:
     @bot.event
@@ -2745,6 +3198,29 @@ def register_events(bot: LATCManagement) -> None:
             await bot.handle_automod(message)
         except Exception:
             log.exception("Automod failed on message %s", getattr(message, "id", "?"))
+
+    @bot.event
+    async def on_voice_state_update(
+        member: discord.Member,
+        before: discord.VoiceState,
+        after: discord.VoiceState,
+    ) -> None:
+        if before.channel is None:
+            return
+        if after.channel is not None and before.channel.id == after.channel.id:
+            return
+        guild = member.guild
+        if guild is None:
+            return
+        try:
+            claimed = await bot.db.atc_claim_for(guild.id, before.channel.id)
+            if claimed == member.id:
+                await bot.db.release_atc_claim(guild.id, before.channel.id)
+                await bot.refresh_atc_panel(guild)
+        except Exception:
+            log.exception(
+                "ATC auto-release failed for %s in %s", member.id, guild.id
+            )
 
     @bot.event
     async def on_message_edit(before: discord.Message, after: discord.Message) -> None:
