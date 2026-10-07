@@ -392,6 +392,23 @@ class Database:
             "CREATE UNIQUE INDEX IF NOT EXISTS roblox_accounts_owner"
             " ON roblox_accounts (guild_id, roblox_user_id)"
         )
+        cols = await self._columns_pg("atis_entries")
+        if "content" not in cols:
+            if "arrivals" in cols or "departures" in cols:
+                await self.execute(
+                    "ALTER TABLE atis_entries ADD COLUMN IF NOT EXISTS content TEXT NOT NULL DEFAULT ''"
+                )
+                try:
+                    await self.execute(
+                        "UPDATE atis_entries SET content = COALESCE(arrivals,'') || "
+                        "CASE WHEN departures IS NOT NULL AND departures <> '' THEN '\n' || departures ELSE '' END"
+                    )
+                except Exception:
+                    pass
+            else:
+                await self.execute(
+                    "ALTER TABLE atis_entries ADD COLUMN IF NOT EXISTS content TEXT NOT NULL DEFAULT ''"
+                )
 
     def _normalize_requirement_values(self) -> None:
         """Fold the retired requirement values into the single code based one.
